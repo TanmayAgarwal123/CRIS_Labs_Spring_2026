@@ -15,6 +15,8 @@ from sae_core.sae_config import SAEConfig
 from sae_core.standard_sae import StandardSAE
 from sae_core.training import train_sae
 
+# NOTE: NOT CURRENTLY USING IN IMPLEMENTATION, SAELENS USES THIS SO MIGHT BE USEFUL LATER
+
 # Class that collects activations on a forward pass (lower level storage in memory)
 class ActivationBuffer:
     """Stores activations from a TransformerLens model"""
