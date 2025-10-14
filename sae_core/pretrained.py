@@ -5,6 +5,7 @@ from sae_core.sae_base import SAE
 # TO DO: Save a dictionary of saved models in json, update each time we save a model, load json file 
 PRETRAINED_SAES = {
     'gpt2.blocks.5.hook_mlp_out.sae': 'pretrained_models/gpt2.blocks.5.hook_mlp_out.sae',
+    'broken_qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/broken_qwen3_06B.blocks.14.hook_mlp_out.sae',
     'qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae'
 }
 

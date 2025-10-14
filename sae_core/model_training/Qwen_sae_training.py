@@ -68,7 +68,7 @@ QWEN3_SAE_Trainer = SAETrainer(
 
 print("Starting SAE training:")
 
-history = QWEN3_SAE_Trainer.train(texts=text_list[:64])
+history = QWEN3_SAE_Trainer.train(texts=text_list[:256])
 
 QWEN3_SAE = QWEN3_SAE_Trainer.sae
 
