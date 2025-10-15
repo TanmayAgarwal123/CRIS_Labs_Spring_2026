@@ -83,7 +83,7 @@ class SAE(nn.Module):
         return output, features
     
     def normalize_decoder(self):
-        """Normalize decoder columns to unit norm"""
+        """Normalize decoder rows to unit norm"""
         with torch.no_grad():
             # W_dec shape = (d_sae, d_in)
             norms = torch.norm(self.W_dec, dim=1, keepdim=True) # shape (d_sae,1)
@@ -100,10 +100,10 @@ class SAE(nn.Module):
         l1_loss = features.abs().mean()
         
         # Total layer loss
-        total_loss = recon_loss + self.cfg.l1_coefficient * l1_loss
+        # total_loss = recon_loss + self.cfg.l1_coefficient * l1_loss
         
         return {
-            "loss": total_loss,
+            # "loss": total_loss,
             "recon_loss": recon_loss,
             "l1_loss": l1_loss,
             "features": features,

@@ -13,11 +13,13 @@ class SAEConfig:
     """Config class for SAE"""
     d_in: int       # input dimension
     d_sae: int      # SAE dimension
-    l1_coefficient: float = 0.01  # sparsity penalty
+    l1_coefficient: float = 1  # sparsity penalty
     dtype: str = "float32" 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     use_error_term: bool = False
-    hook_spec: str = "blocks.14.hook_mlp_out"
+    hook_layer: str = "14"
+    hook_name: str = "mlp_out"
+    hook_spec: str = f"blocks.{hook_layer}.{hook_name}"
 
     @property
     def torch_dtype(self) -> torch.dtype:
@@ -35,6 +37,8 @@ class SAEConfig:
             "dtype": str(self.dtype).replace("torch.", "") if isinstance(self.dtype, torch.dtype) else self.dtype,
             "device": self.device,
             "use_error_term": self.use_error_term,
+            "hook_layer": self.hook_layer,
+            "hook_name": self.hook_name,
             "hook_spec": self.hook_spec
         }
     

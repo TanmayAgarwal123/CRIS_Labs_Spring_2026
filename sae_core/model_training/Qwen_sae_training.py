@@ -29,15 +29,19 @@ sae_expansion = 4
 
 text_list = load_processed_data('sae_core/data/processed_data/processed_chem_text.json')
 
-hook_spec = 'blocks.14.hook_mlp_out'
+hook_layer = '14'
+hook_name = 'hook_mlp_out'
+hook_spec = f'blocks.{hook_layer}.{hook_name}'
 
 QWEN3_SAE_Config = SAEConfig(
     d_in = qwen3_06b.cfg.d_model,
     d_sae = sae_expansion * qwen3_06b.cfg.d_model,
-    l1_coefficient = 0.01,
+    l1_coefficient = 2.0,
     dtype = str(qwen3_06b.cfg.dtype).replace("torch.", ""),
     device = "cuda",
     use_error_term = False,
+    hook_layer = hook_layer,
+    hook_name = hook_name,
     hook_spec = hook_spec
 )
 print(f'Model dim: {QWEN3_SAE_Config.d_in}, SAE dim: {QWEN3_SAE_Config.d_sae}')

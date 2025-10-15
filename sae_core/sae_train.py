@@ -73,39 +73,5 @@ class SAETrainer:
         loader = DataLoader(dataset, batch_size = self.train_cfg.batch_size, shuffle=True, collate_fn=collate_fn)
 
         return train_sae(self.sae, self.model, loader, self.train_cfg)
-
-    # def collect_and_train(
-    #     self,
-    #     texts: List[str],
-    #     num_epochs: int = 10,
-    #     batch_size: int = 256,
-    #     lr: float = 1e-3,
-    #     l1_coefficient: float = 0.01,
-    #     max_text_length: int = 128,
-    #     activation_batch_size: int = 16,
-    # ) -> Dict[str, List[float]]:
-    #     """Collect activations and train SAE"""
-        
-    #     # Collect activations
-    #     activations = self.collector.collect(
-    #         texts, 
-    #         batch_size=activation_batch_size,
-    #         max_length=max_text_length
-    #     )
-        
-    #     # Create dataset and loader
-    #     dataset = ActivationDataset(activations)
-    #     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        
-    #     # Train
-    #     history = train_sae(
-    #         self.sae,
-    #         loader,
-    #         num_epochs=num_epochs,
-    #         lr=lr,
-    #         l1_coefficient=l1_coefficient
-    #     )
-        
-    #     return history
     
 print("all the way through")
