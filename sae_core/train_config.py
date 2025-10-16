@@ -19,14 +19,14 @@ class TrainingConfig:
     l1_coefficient: float = 0.01
     
     use_end_to_end: bool = True
-    reconstruction_loss_weight: float = 1.0  # Weight for local reconstruction
+    reconstruction_loss_weight: float = 1  # Weight for local reconstruction
     
     use_block_mse: bool = True
-    block_mse_weight: float = 1     # Might have to turn this into a list if want layer-specific weights
+    block_mse_weight: float = 0.1     # Might have to turn this into a list if want layer-specific weights
     block_mse_layers: Optional[List[int]] = None  # Which blocks to compute MSE at
     
     use_logit_kl: bool = True
-    logit_kl_weight: float = 1.0
+    logit_kl_weight: float = 0.1
     
     log_freq: int = 100
 

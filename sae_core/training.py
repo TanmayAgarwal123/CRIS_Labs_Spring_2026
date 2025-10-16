@@ -17,7 +17,6 @@ from sae_core.train_config import TrainingConfig
 def train_sae(
     sae: SAE,
     model: HookedTransformer,
-    # hook_point: str,
     data_loader: DataLoader,
     config: TrainingConfig
 ) -> Dict[str, List[float]]:
@@ -34,19 +33,20 @@ def train_sae(
     optimizer = torch.optim.Adam(sae.parameters(), lr=config.lr) # add mapping at some point
 
     hook_spec = sae.cfg.hook_spec
-
-    # Find layer number
-    layer_num = int(hook_spec.split('.')[1])
+    hook_layer = sae.cfg.hook_layer
+    hook_name = sae.cfg.hook_name
 
     if config.block_mse_layers is None:
-        mse_layers = list(range(layer_num+1, model.cfg.n_layers)) # proceeding layers
+        mse_layers = list(range(int(hook_layer)+1, model.cfg.n_layers)) # proceeding layers
     else:
         mse_layers = config.block_mse_layers
     
-    history = {"loss": [], "recon_loss": [], "l1_loss": [], "sparsity": []}
+    history = {"loss": [], "recon_loss": [], "l1_loss": [], "sparsity": [],
+               "recon_contribution": [], "l1_contribution": []}
     cache_names = [hook_spec]
     if config.use_block_mse:
         history['total_post_layer_mse'] = []
+        history['block_mse_contribution'] = []
         cache_names.extend([f"blocks.{layer}.hook_resid_post" for layer in mse_layers])
         for layer in mse_layers:
             history[f"{layer}_mse"] = []
@@ -54,6 +54,7 @@ def train_sae(
     kl_div = None
     if config.use_logit_kl:
         history["logit_kl"] = []
+        history["kl_contribution"] = []
         cache_names.append("logits")
     
     for epoch in range(config.num_epochs):
@@ -76,30 +77,22 @@ def train_sae(
                 # Reshape if needed:
                 batch_size, seq_len = batch.shape[:2]
                 activations = activations.flatten(0,1) if len(activations.shape) == 3 else activations.flatten(0,2)
-            
-            # SAE Forward pass            
-            # outputs = sae.training_forward(activations)
-
-            # #Split outputs
-            # recon_loss = outputs["recon_loss"]
-            # l1_loss = outputs["l1_loss"]
-            # # loss = outputs["loss"]
-            # x_recon = outputs["x_recon"]    # shape [batch_size,seq_len,d_in]
-            # sae_act = outputs["features"]   # shape [batch_size,seq_len,d_sae]
-
-            # loss = (config.reconstruction_loss_weight * outputs["recon_loss"]+
-            #         config.l1_coefficient * outputs["l1_loss"])
 
             x_recon, features = sae.forward(activations)
 
             recon_loss = F.mse_loss(activations, x_recon)
             l1_loss = features.abs().mean()
 
-            loss = config.reconstruction_loss_weight * recon_loss + config.l1_coefficient * l1_loss
+            recon_contribution = config.reconstruction_loss_weight * recon_loss
+            l1_contribution = config.l1_coefficient * l1_loss
+            loss = recon_contribution + l1_contribution
 
             # Calculate sparsity:
             epoch_metrics['sparsity'] += (features > 0).float().sum(dim=1).mean().item()
+            epoch_metrics['recon_contribution'] += recon_contribution.item()
+            epoch_metrics['l1_contribution'] += l1_contribution.item()
 
+            block_mse_contribution = 0.0
             if config.use_end_to_end:
                 x_recon_reshaped = x_recon.reshape(batch_size, seq_len, -1)     # might be redundant
 
@@ -118,17 +111,23 @@ def train_sae(
                             cache_intervened[f"blocks.{layer}.hook_resid_post"],
                             cache_clean[f"blocks.{layer}.hook_resid_post"]
                         )   # calculate mse between model output and modified output (from sae)
-                        loss += config.block_mse_weight * layer_mse
+                        layer_mse_contribution = config.block_mse_weight * layer_mse
+                        loss += layer_mse_contribution
+                        block_mse_contribution += layer_mse_contribution.item()
                         epoch_metrics[f'{layer}_mse'] += layer_mse.item()
                         epoch_metrics['total_post_layer_mse'] += layer_mse.item()
+
+                    epoch_metrics['block_mse_contribution'] += block_mse_contribution
 
                 if config.use_logit_kl:
                     kl_div = compute_kl_divergence(
                         logits_intervened,
                         logits_clean
                     )
-                    loss += config.logit_kl_weight * kl_div
+                    kl_contribution = config.logit_kl_weight * kl_div
+                    loss += kl_contribution
                     epoch_metrics['logit_kl'] += kl_div.item()
+                    epoch_metrics['kl_contribution'] += kl_contribution.item()
             
             # Backward pass
             loss.backward()
@@ -142,19 +141,29 @@ def train_sae(
             num_batches += 1
 
             if i % config.log_freq == 0:
-                pbar_dict = {"loss": f"{loss.item():.4f}"}
+                pbar_dict = {
+                    "loss": f"{loss.item():.4f}",
+                    "recon": f"{recon_contribution.item():.4f}",
+                    "l1": f"{l1_contribution.item():.4f}"
+                }
                 if config.use_block_mse:
-                    pbar_dict['block_mse'] = f"{epoch_metrics['total_post_layer_mse']/num_batches:.4f}"
+                    pbar_dict['block_mse'] = f"{block_mse_contribution:.4f}"
                 if config.use_logit_kl:
-                    pbar_dict['kl_div'] = f"{kl_div.item():.4f}"
+                    pbar_dict['kl'] = f"{kl_contribution.item():.4f}"
                 pbar.set_postfix(pbar_dict)
         
         for k in history.keys():
             history[k].append(epoch_metrics[k] / num_batches)
 
         print(f"\nEpoch {epoch+1} Summary:")
-        for k, v in history.items():
-            print(f"    {k}: {v[-1]:.4f}")
+        print(f"    loss: {history['loss'][-1]:.4f}")
+        print(f"      └─ recon_contribution: {history['recon_contribution'][-1]:.4f}")
+        print(f"      └─ l1_contribution: {history['l1_contribution'][-1]:.4f}")
+        if config.use_block_mse:
+            print(f"      └─ block_mse_contribution: {history['block_mse_contribution'][-1]:.4f}")
+        if config.use_logit_kl:
+            print(f"      └─ kl_contribution: {history['kl_contribution'][-1]:.4f}")
+        print(f"    sparsity: {history['sparsity'][-1]:.4f}")
     
     return history
 

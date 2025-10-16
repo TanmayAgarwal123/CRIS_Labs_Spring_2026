@@ -6,7 +6,10 @@ from sae_core.sae_base import SAE
 PRETRAINED_SAES = {
     'gpt2.blocks.5.hook_mlp_out.sae': 'pretrained_models/gpt2.blocks.5.hook_mlp_out.sae',
     'broken_qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/broken_qwen3_06B.blocks.14.hook_mlp_out.sae',
-    'qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae'
+    'qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae',
+    'qwen3_06B.blocks.14.hook_mlp_out.sae.sparsity1': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae.sparsity1',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.0' :'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.0',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01':'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01'
 }
 
 def list_pretrained():

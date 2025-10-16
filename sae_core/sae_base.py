@@ -23,7 +23,6 @@ class SAE(nn.Module):
         self.use_error_term = cfg.use_error_term
         self.hook_spec = cfg.hook_spec
         
-        # Initialize weights
         self.initialize_weights()
 
         self.hook_sae_input = HookPoint()       # Input to SAE
@@ -37,6 +36,7 @@ class SAE(nn.Module):
     def get_hook_spec(self):
         return self.hook_spec
         
+
     def initialize_weights(self):
         """Initialize encoder and decoder weights"""
         # at some point should add mapping for init method
@@ -51,6 +51,7 @@ class SAE(nn.Module):
 
         self.b_dec = nn.Parameter(torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device))
         
+
     def encode(self, x: Tensor) -> Tensor:
         """Encode input to sparse features"""
         # x: [..., d_in] -> [..., d_sae]
@@ -58,11 +59,13 @@ class SAE(nn.Module):
         pre_acts = self.hook_sae_acts_pre(pre_acts)
         return torch.relu(pre_acts)  # perhaps create mapping for different act fns?
     
+
     def decode(self, features: Tensor) -> Tensor:
         """Decode features back to input space"""
         # features: [..., d_sae] -> [..., d_in]
         return features @ self.W_dec + self.b_dec
     
+
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         """Forward pass returning reconstruction and features"""
         x = x.to(self.dtype)
@@ -74,20 +77,18 @@ class SAE(nn.Module):
         x_recon = self.decode(features)
         x_recon = self.hook_sae_recons(x_recon)
 
-        # TO DO: add error term:
-        # if self.use_error_term:
-        #     with torch.no_grad():
-
         output = self.hook_sae_output(x_recon)
 
         return output, features
     
+
     def normalize_decoder(self):
         """Normalize decoder rows to unit norm"""
         with torch.no_grad():
             # W_dec shape = (d_sae, d_in)
             norms = torch.norm(self.W_dec, dim=1, keepdim=True) # shape (d_sae,1)
             self.W_dec.data = self.W_dec.data / (norms + 1e-8)
+
 
     def training_forward(self, x: Tensor) -> Dict[str, Tensor]:
         """Forward pass for training, returns losses"""

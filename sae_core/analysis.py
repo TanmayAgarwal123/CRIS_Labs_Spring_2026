@@ -523,7 +523,8 @@ class SAEAnalyzer:
         self._reset_model_state()
         
         # Use min-heap to efficiently track top-k
-        top_examples = []  # Heap of (activation, example_dict)
+        top_examples = []  # Heap of (activation, counter, example_dict)
+        counter = 0  # Unique counter to break ties
         
         print(f"Finding max activating examples for feature {feature_idx}...")
         
@@ -587,11 +588,13 @@ class SAEAnalyzer:
                             'batch_idx': i + batch_idx.item()
                         }
                         
-                        # Maintain top-k using heap
+                        # Maintain top-k using heap with counter for tie-breaking
                         if len(top_examples) < top_k:
-                            heapq.heappush(top_examples, (val.item(), example))
+                            heapq.heappush(top_examples, (val.item(), counter, example))
+                            counter += 1
                         elif val.item() > top_examples[0][0]:
-                            heapq.heapreplace(top_examples, (val.item(), example))
+                            heapq.heapreplace(top_examples, (val.item(), counter, example))
+                            counter += 1
                 
                 except Exception as e:
                     print(f"Warning: Error processing batch {i//batch_size}: {e}")
@@ -605,7 +608,7 @@ class SAEAnalyzer:
         
         # Sort by activation (descending)
         top_examples.sort(reverse=True, key=lambda x: x[0])
-        result = [ex[1] for ex in top_examples]
+        result = [ex[2] for ex in top_examples]  # Changed from ex[1] to ex[2]
         
         print(f"\n✓ Found top {len(result)} activating examples for feature {feature_idx}")
         print(f"  Max activation: {result[0]['activation']:.4f}")
