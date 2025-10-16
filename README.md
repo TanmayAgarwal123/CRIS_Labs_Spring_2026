@@ -1,6 +1,6 @@
 # SAE Core
 
-A comprehensive Sparse Autoencoder (SAE) implementation for analyzing transformer language models, developed for the CRIS Lab at Columbia University.
+A comprehensive Sparse Autoencoder (SAE) implementation for analyzing transformer language models.
 
 ## Overview
 
@@ -90,6 +90,3 @@ The repository includes several pre-trained SAEs:
 - NumPy
 - tqdm
 
-## Research Context
-
-This work is part of mechanistic interpretability research at Columbia University's CRIS Lab, focusing on understanding how transformer models represent and process information through sparse, interpretable features.
