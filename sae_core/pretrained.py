@@ -9,7 +9,12 @@ PRETRAINED_SAES = {
     'qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae',
     'qwen3_06B.blocks.14.hook_mlp_out.sae.sparsity1': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae.sparsity1',
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.0' :'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.0',
-    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01':'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01'
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01':'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity0.1.mse0.1.kl0.1': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity0.1.mse0.1.kl0.1',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.01.kl0.1': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.01.kl0.1',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.1.kl0.1' : 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.1.kl0.1',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.mse0.01.kl0.1': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.mse0.01.kl0.1',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01'
 }
 
 def list_pretrained():
