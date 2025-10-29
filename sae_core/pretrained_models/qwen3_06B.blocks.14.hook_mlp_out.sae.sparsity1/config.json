@@ -1,1 +1,0 @@
-{"d_in": 1024, "d_sae": 4096, "l1_coefficient": 1.0, "dtype": "float32", "device": "cuda", "use_error_term": false, "hook_layer": "14", "hook_name": "hook_mlp_out", "hook_spec": "blocks.14.hook_mlp_out"}

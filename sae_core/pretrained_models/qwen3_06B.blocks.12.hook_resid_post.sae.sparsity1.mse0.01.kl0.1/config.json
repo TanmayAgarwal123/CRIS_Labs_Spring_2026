@@ -1,1 +1,0 @@
-{"d_in": 1024, "d_sae": 4096, "l1_coefficient": 1, "dtype": "float32", "device": "cuda", "use_error_term": false, "hook_layer": "12", "hook_name": "hook_resid_post", "hook_spec": "blocks.12.hook_resid_post"}

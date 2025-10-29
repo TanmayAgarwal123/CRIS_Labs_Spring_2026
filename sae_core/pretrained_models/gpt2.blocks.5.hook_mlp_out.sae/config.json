@@ -1,1 +1,0 @@
-{"d_in": 768, "d_sae": 3072, "l1_coefficient": 0.01, "dtype": "float32", "device": "cuda"}
