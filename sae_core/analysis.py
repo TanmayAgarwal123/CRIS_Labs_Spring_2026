@@ -189,7 +189,7 @@ class SAEAnalyzer:
     def find_dead_features(
         self, 
         feature_freq: List[float], 
-        threshold: float = 0.01
+        threshold: float = 0.001
     ) -> Dict[str, any]:
         """
         Identify features that rarely or never activate

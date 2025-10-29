@@ -41,7 +41,7 @@ class SAE(nn.Module):
         """Initialize encoder and decoder weights"""
         # at some point should add mapping for init method
         W_enc_mat = torch.empty(self.cfg.d_in, self.cfg.d_sae, dtype=self.dtype, device=self.device)
-        nn.init.kaiming_normal_(W_enc_mat)
+        nn.init.kaiming_uniform_(W_enc_mat)
         self.W_enc = nn.Parameter(W_enc_mat)
 
         self.b_enc = nn.Parameter(torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device))

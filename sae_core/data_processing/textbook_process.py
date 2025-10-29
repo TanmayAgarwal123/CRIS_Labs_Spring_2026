@@ -167,19 +167,67 @@ def load_processed_data(input_path, format='json'):
             return pickle.load(f)
     else:
         raise ValueError(f"Unknown format: {format}")
+    
+
+def load_and_process_multiple_files(
+    file_paths,
+    num_files,
+    method='paragraphs',
+    chunk_size=512,
+    overlap=50,
+    preserve_chapter_boundaries=False
+):
+    """Process multiple chapter files
+    Args: 
+        file_paths: list of paths to markdown files
+        preserve_chapter_boundaries: bool for adding chapter metadata
+    """
+    all_segments = []
+
+    for i, file_path in enumerate(file_paths[:num_files]):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+
+        # Process the chapter
+        if method == 'paragraphs':
+            segments = parse_by_paragraphs(text)
+        elif method == 'sentences':
+            segments = parse_by_sentences(text)
+        elif method == 'chunks':
+            segments = parse_by_chunks(text, chunk_size, overlap)
+        elif method == 'lines':
+            segments = parse_by_lines(text)
+        else:
+            raise ValueError(f"Unknown method: {method}")
+        
+        if preserve_chapter_boundaries:
+            segments = [{'chapter': i+1, 'text':seg} for seg in segments]
+
+        all_segments.extend(segments)
+
+    return all_segments
 
 
 if __name__ == "__main__":
-    file_path = 'sae_core/data/raw_data/elementary_study_chem.txt'
-    output_path = 'sae_core/data/processed_data/processed_chem_text.json'
+    # file_path = 'sae_core/data/raw_data/elementary_study_chem.txt'
+    output_path = 'sae_core/data/processed_data/processed_physics_10_ch.json'
 
-    text_list = load_and_process_textbook(
-        file_path,
-        method='paragraphs'
+    chapter_dir = Path('sae_core/data/raw_data/physics_chapters')
+    chapter_files = sorted(chapter_dir.glob('*.md'))[:10]
+
+    if not chapter_files:
+        raise FileNotFoundError(f"No .md files found in {chapter_dir}")
+    
+    print(f"Found {len(chapter_files)} chapter files")
+
+    text_list = load_and_process_multiple_files(
+        chapter_files,
+        num_files=10,
+        method='paragraphs',
+        preserve_chapter_boundaries=False
     )
     print(f"Processed {len(text_list)} text segments")
-    print(f"First segment: {text_list[0][:200]}...")
+    print(f"First segment: {text_list[0] if isinstance(text_list[0],str) else text_list[0]['text'][:200]}...")
     
-    # Save for later use
     save_processed_data(text_list, output_path)
     print(f"Saved to {output_path}")

@@ -4,6 +4,7 @@ from sae_core.sae_base import SAE
 
 # TO DO: Save a dictionary of saved models in json, update each time we save a model, load json file 
 PRETRAINED_SAES = {
+    # Deprecated SAEs:
     'gpt2.blocks.5.hook_mlp_out.sae': 'pretrained_models/gpt2.blocks.5.hook_mlp_out.sae',
     'broken_qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/broken_qwen3_06B.blocks.14.hook_mlp_out.sae',
     'qwen3_06B.blocks.14.hook_mlp_out.sae': 'pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae',
@@ -14,7 +15,10 @@ PRETRAINED_SAES = {
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.01.kl0.1': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.01.kl0.1',
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.1.kl0.1' : 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity1.mse0.1.kl0.1',
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.mse0.01.kl0.1': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity2.mse0.01.kl0.1',
-    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01'
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity20.mse0.001.kl0.01',
+    # New SAEs:
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10': 'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10.exp8':'pretrained_models/qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10.exp8'
 }
 
 def list_pretrained():
