@@ -69,6 +69,7 @@ class SAE(nn.Module):
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         """Forward pass returning reconstruction and features"""
         x = x.to(self.dtype)
+        x = x - self.b_dec  # Added from Anthropic paper (pre-encoder bias)
         x = self.hook_sae_input(x)
 
         features = self.encode(x)

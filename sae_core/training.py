@@ -18,7 +18,10 @@ def train_sae(
     sae: SAE,
     model: HookedTransformer,
     data_loader: DataLoader,
-    config: TrainingConfig
+    config: TrainingConfig,
+    checkpoint_dir: Optional[Path] = None,
+    checkpoint_freq: int = 5,
+    save_best: bool = True
 ) -> Dict[str, List[float]]:
     """
     SAE training function that should work with any SAE variant
@@ -26,6 +29,13 @@ def train_sae(
     Returns:
         History dictionary with loss curves
     """
+    # Checkpointing
+    if checkpoint_dir is not None:
+        checkpoint_dir = Path(checkpoint_dir)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Checkpointing enabled: saving to {checkpoint_dir}")
+    best_recon_loss = float('inf')
+
     # Freeze model parameters - they won't be needing gradient updates
     for param in model.parameters():
         param.requires_grad = False
@@ -42,7 +52,8 @@ def train_sae(
         mse_layers = config.block_mse_layers
     
     history = {"loss": [], "recon_loss": [], "l1_loss": [], "sparsity": [],
-               "recon_contribution": [], "l1_contribution": []}
+               "recon_contribution": [], "l1_contribution": [], "dead_features": [],
+               "dead_feature_percentage": []}
     cache_names = [hook_spec]
     if config.use_block_mse:
         history['total_post_layer_mse'] = []
@@ -60,6 +71,8 @@ def train_sae(
     for epoch in range(config.num_epochs):
         epoch_metrics = {k:0 for k in history.keys()}
         num_batches = 0
+
+        feature_has_fired = torch.zeros(sae.cfg.d_sae, dtype=torch.bool, device=sae.device) # [d_sae] for each feature in SAE dim
         
         pbar = tqdm(data_loader, desc=f"Epoch {epoch+1}/{config.num_epochs}")
         for i, batch in enumerate(pbar):
@@ -69,9 +82,8 @@ def train_sae(
             # Clean model activations
             with torch.no_grad():
                 logits_clean, cache_clean = model.run_with_cache(
-                     batch,
-                    names_filter=lambda name: name in cache_names
-                )
+                    batch, names_filter=lambda name: name in cache_names
+                    )
                 activations = cache_clean[hook_spec]
                 
                 # Reshape if needed:
@@ -87,6 +99,8 @@ def train_sae(
             l1_contribution = config.l1_coefficient * l1_loss
             loss = recon_contribution + l1_contribution
 
+            feature_has_fired |= (features > 0).any(dim=0)  # bitwise OR to see if a feature has fired at all this epoch
+
             # Calculate sparsity:
             epoch_metrics['sparsity'] += (features > 0).float().sum(dim=1).mean().item()
             epoch_metrics['recon_contribution'] += recon_contribution.item()
@@ -101,8 +115,7 @@ def train_sae(
                 
                 with model.hooks(fwd_hooks=[(hook_spec, intervention_hook)]):
                     logits_intervened, cache_intervened = model.run_with_cache(
-                        batch,
-                        names_filter=lambda name: name in cache_names
+                        batch, names_filter=lambda name: name in cache_names
                     )
 
                 if config.use_block_mse:
@@ -121,8 +134,7 @@ def train_sae(
 
                 if config.use_logit_kl:
                     kl_div = compute_kl_divergence(
-                        logits_intervened,
-                        logits_clean
+                        logits_clean, logits_intervened
                     )
                     kl_contribution = config.logit_kl_weight * kl_div
                     loss += kl_contribution
@@ -151,9 +163,17 @@ def train_sae(
                 if config.use_logit_kl:
                     pbar_dict['kl'] = f"{kl_contribution.item():.4f}"
                 pbar.set_postfix(pbar_dict)
+
+        dead_features = (~feature_has_fired).sum().item()   # bitwise NOT shows us which features have NOT fired, then we sum
+        dead_feature_pct = 100 * dead_features / sae.cfg.d_sae
         
         for k in history.keys():
-            history[k].append(epoch_metrics[k] / num_batches)
+            if k == "dead_features":
+                history[k].append(dead_features)
+            elif k == "dead_feature_percentage":
+                history[k].append(dead_feature_pct)
+            else:
+                history[k].append(epoch_metrics[k] / num_batches)
 
         print(f"\nEpoch {epoch+1} Summary:")
         print(f"    loss: {history['loss'][-1]:.4f}")
@@ -164,6 +184,19 @@ def train_sae(
         if config.use_logit_kl:
             print(f"      └─ kl_contribution: {history['kl_contribution'][-1]:.4f}")
         print(f"    sparsity: {history['sparsity'][-1]:.4f}")
+        print(f"    dead features: {dead_features}/{sae.cfg.d_sae} ({dead_feature_pct:.2f}%)")
+
+        if checkpoint_dir is not None:
+            if (epoch + 1) % checkpoint_freq == 0:
+                checkpoint_path = checkpoint_dir / f"checkpoint_epoch{epoch+1}.pt"
+                sae.save(str(checkpoint_path), history=history)
+                print(f"    Saved checkpoint to {checkpoint_path}")
+
+            if save_best and history['recon_loss'][-1] < best_recon_loss:
+                best_recon_loss = history['recon_loss'][-1]
+                best_model_path = checkpoint_dir / "best_model.pt"
+                sae.save(str(best_model_path), history=history)
+                print(f"    New best model (recon_loss: {best_recon_loss:.4f}) Saved to {best_model_path}")
     
     return history
 
@@ -187,6 +220,10 @@ def compute_kl_divergence(
     log_probs_original = F.log_softmax(logits_original / temperature, dim=-1)
     log_probs_reconstructed = F.log_softmax(logits_reconstructed / temperature, dim=-1)
 
-    kl_div = F.kl_div(log_probs_reconstructed, log_probs_original, reduction='batchmean',log_target=True)
+    kl_div = F.kl_div( 
+        log_probs_reconstructed,
+        log_probs_original,
+        reduction='batchmean',
+        log_target=True)
     
     return kl_div

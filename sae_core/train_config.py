@@ -31,7 +31,7 @@ class TrainingConfig:
     log_freq: int = 100
 
     activation_batch_size: int = 16
-    max_text_length: int = 128
+    max_text_length: int = 256
     
     def __post_init__(self):
         """Validate config"""

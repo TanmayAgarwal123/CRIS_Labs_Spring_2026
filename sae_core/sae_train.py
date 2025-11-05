@@ -43,7 +43,13 @@ class SAETrainer:
         
         self.sae = sae_class(self.sae_cfg)
         
-    def train(self, texts:List[str]):
+    def train(
+            self, 
+            texts:List[str],
+            checkpoint_dir: Optional[str] = None,
+            checkpoint_freq: int = 5,
+            save_best: bool = True
+        ):
         # Tokenize
         tokens = [
             self.model.to_tokens(t, prepend_bos=True)[0, : self.train_cfg.max_text_length]
@@ -72,6 +78,16 @@ class SAETrainer:
 
         loader = DataLoader(dataset, batch_size = self.train_cfg.batch_size, shuffle=True, collate_fn=collate_fn)
 
-        return train_sae(self.sae, self.model, loader, self.train_cfg)
+        checkpoint_path = Path(checkpoint_dir) if checkpoint_dir is not None else None
+
+        return train_sae(
+            self.sae, 
+            self.model, 
+            loader, 
+            self.train_cfg,
+            checkpoint_dir=checkpoint_path,
+            checkpoint_freq=checkpoint_freq,
+            save_best=save_best
+        )
     
 print("all the way through")
