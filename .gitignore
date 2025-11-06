@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 analysis/
 *.pkl
+sae_env/
