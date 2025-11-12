@@ -253,6 +253,11 @@ class SAEAnalyzer:
         token_metadata = []
         global_token_idx = 0
 
+        # Track padding tokens
+        padding_tokens_skipped = 0
+        pad_token_id = self.model.tokenizer.pad_token_id
+        print(f"Pad token ID: {pad_token_id}")
+
         # Feature statistics
         feature_activation_counts = torch.zeros(self.sae.cfg.d_sae)
         feature_total_activation = torch.zeros(self.sae.cfg.d_sae)
@@ -288,12 +293,19 @@ class SAEAnalyzer:
                         text_global_idx = text_idx + batch_idx
 
                         for pos in range(acts.shape[1]):
+                            # Get token ID 
+                            token_id = tokens[batch_idx, pos].item()
+                            
+                            # Skip padding tokens (critical fix for Qwen)
+                            if token_id == pad_token_id:
+                                padding_tokens_skipped += 1
+                                continue
+                            
                             # Get features for this token
-                            token_acts = acts[batch_idx, pos, :]    # [model_layer_dim,] - activation for one token
+                            token_acts = acts[batch_idx, pos, :]
                             features = self.sae.encode(token_acts.unsqueeze(0))[0]
 
                             # Get token string
-                            token_id = tokens[batch_idx, pos].item()
                             token_str = self.model.to_string(tokens[batch_idx, pos])
 
                             # Store metadata
@@ -331,6 +343,7 @@ class SAEAnalyzer:
             self.reset_model_state()
 
         print(f"Processed {global_token_idx} tokens")
+        print(f"Padding tokens skipped: {padding_tokens_skipped}")
         print(f"Collected {len(all_activations)} non-zero activations")
 
         rows, cols, values = zip(*all_activations) if all_activations else ([],[],[])
@@ -506,7 +519,9 @@ class SAEAnalyzer:
         
         self.reset_model_state()
 
-        # Runnin stats
+        pad_token_id = self.model.tokenizer.pad_token_id
+
+        # Running stats
         l0_sum = 0.0
         l0_sq_sum = 0.0
         l1_sum = 0.0
@@ -539,6 +554,9 @@ class SAEAnalyzer:
 
                     # Flatten batch and sequence dimensions
                     acts_flat = acts.reshape(-1, acts.shape[-1])
+                    tokens_flat = tokens.reshape(-1)
+                    non_padding_mask = tokens_flat != pad_token_id
+                    acts_flat = acts_flat[non_padding_mask]
 
                     # Skip if no activations
                     if acts_flat.shape[0] == 0:
@@ -598,7 +616,7 @@ class SAEAnalyzer:
     def find_dead_features(
         self,
         feature_freq: List[float],
-        threshold: float = 0.001
+        threshold: float = 0.0
     ) -> Dict[str, any]:
         """
         Identify features that rarely or never activate
@@ -640,6 +658,8 @@ class SAEAnalyzer:
         
         self.reset_model_state()
 
+        pad_token_id = self.model.tokenizer.pad_token_id
+
         # Running stats
         mse_sum = 0.0
         original_var_sum = 0.0
@@ -670,6 +690,9 @@ class SAEAnalyzer:
                     )
                     acts = cache[self.hook_point]
                     acts_flat = acts.reshape(-1, acts.shape[-1])
+                    tokens_flat = tokens.reshape(-1)
+                    non_padding_mask = tokens_flat != pad_token_id
+                    acts_flat = acts_flat[non_padding_mask]
                     
                     if acts_flat.shape[0] == 0:
                         continue
@@ -1382,7 +1405,7 @@ class SAEAnalyzer:
             colors=['lightgreen', 'lightcoral'],
             startangle=90
         )
-        axes[2].set_title(f'Feature Usage\n(threshold=0.001)')
+        axes[2].set_title(f'Feature Usage\n(threshold=0.0)')
         
         plt.tight_layout()
         

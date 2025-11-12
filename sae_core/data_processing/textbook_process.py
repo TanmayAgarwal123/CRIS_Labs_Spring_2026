@@ -210,10 +210,10 @@ def load_and_process_multiple_files(
 
 if __name__ == "__main__":
     # file_path = 'sae_core/data/raw_data/elementary_study_chem.txt'
-    output_path = 'sae_core/data/processed_data/processed_physics_10_ch.json'
+    output_path = 'sae_core/data/processed_data/processed_physics_all.json'
 
     chapter_dir = Path('sae_core/data/raw_data/physics_chapters')
-    chapter_files = sorted(chapter_dir.glob('*.md'))[:10]
+    chapter_files = sorted(chapter_dir.glob('*.md'))
 
     if not chapter_files:
         raise FileNotFoundError(f"No .md files found in {chapter_dir}")
@@ -222,7 +222,7 @@ if __name__ == "__main__":
 
     text_list = load_and_process_multiple_files(
         chapter_files,
-        num_files=10,
+        num_files=34,
         method='paragraphs',
         preserve_chapter_boundaries=False
     )

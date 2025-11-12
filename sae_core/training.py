@@ -11,7 +11,6 @@ from tqdm import tqdm
 from transformer_lens import HookedTransformer
 
 from sae_core.sae_base import SAE
-from sae_core.standard_sae import StandardSAE
 from sae_core.train_config import TrainingConfig
 
 def train_sae(
@@ -67,6 +66,8 @@ def train_sae(
         history["logit_kl"] = []
         history["kl_contribution"] = []
         cache_names.append("logits")
+
+    pad_token_id = model.tokenizer.pad_token_id or model.tokenizer.eos_token_id
     
     for epoch in range(config.num_epochs):
         epoch_metrics = {k:0 for k in history.keys()}
@@ -85,14 +86,19 @@ def train_sae(
                     batch, names_filter=lambda name: name in cache_names
                     )
                 activations = cache_clean[hook_spec]
-                
-                # Reshape if needed:
-                batch_size, seq_len = batch.shape[:2]
-                activations = activations.flatten(0,1) if len(activations.shape) == 3 else activations.flatten(0,2)
 
-            x_recon, features = sae.forward(activations)
+                batch_size, seq_len, d_model = activations.shape
 
-            recon_loss = F.mse_loss(activations, x_recon)
+                activations_flat = activations.reshape(-1, d_model)
+                tokens_flat = batch.reshape(-1)
+                non_pad = tokens_flat != pad_token_id
+                activations_real = activations_flat[non_pad]
+                if activations_real.numel() == 0:
+                    continue
+
+            x_recon, features = sae.forward(activations_real)
+
+            recon_loss = F.mse_loss(activations_real, x_recon)
             l1_loss = features.abs().mean()
 
             recon_contribution = config.reconstruction_loss_weight * recon_loss
@@ -106,9 +112,12 @@ def train_sae(
             epoch_metrics['recon_contribution'] += recon_contribution.item()
             epoch_metrics['l1_contribution'] += l1_contribution.item()
 
+            x_recon_full = activations_flat.clone()
+            x_recon_full[non_pad] = x_recon
+
             block_mse_contribution = 0.0
             if config.use_end_to_end:
-                x_recon_reshaped = x_recon.reshape(batch_size, seq_len, -1)     # might be redundant
+                x_recon_reshaped = x_recon_full.reshape(batch_size, seq_len, -1)     # might be redundant
 
                 def intervention_hook(acts, hook):
                     return x_recon_reshaped

@@ -1,0 +1,8 @@
+pretrained_models/
+__pycache__/
+.git/
+*.log
+deprecated_analysis/
+cris_py312_env/
+checkpoints/
+sae_env/

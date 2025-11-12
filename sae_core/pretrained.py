@@ -22,7 +22,9 @@ PRETRAINED_SAES = {
     # New SAEs:
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10',
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10.exp8': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity40.mse0.001.kl0.01.physics10.exp8',
-    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8'
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity200.mse0.001.kl0.01.physics.exp4': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity200.mse0.001.kl0.01.physics.exp4',
+    'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4'
 }
 
 def list_pretrained():

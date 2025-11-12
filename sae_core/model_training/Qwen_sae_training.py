@@ -14,10 +14,9 @@ import requests
 
 from sae_core.sae_base import SAE
 from sae_core.sae_config import SAEConfig
-from sae_core.standard_sae import StandardSAE
 from sae_core.training import train_sae
 from sae_core.sae_train import SAETrainer
-from sae_core.training import TrainingConfig
+from sae_core.train_config import TrainingConfig
 
 from sae_core.data_processing.textbook_process import load_processed_data
 
@@ -25,13 +24,13 @@ from sae_core.data_processing.textbook_process import load_processed_data
 # Qwen3 Models: 0.6B, 1.7B, 4B, 8B, 14B, 32B
 qwen3_06b = HookedTransformer.from_pretrained("qwen3-0.6b")
 
-sae_expansion = 8
-sparsity_penalty = 60   # typically 0.01 without e2e + kl
+sae_expansion = 4
+sparsity_penalty = 100   # typically 0.01 without e2e + kl
 recon_weight = 1.0
 mse_penalty = 0.001
 kl_penalty = 0.01
 
-text_list = load_processed_data('sae_core/data/processed_data/processed_physics_10_ch.json')
+text_list = load_processed_data('sae_core/data/processed_data/processed_physics_all.json')
 
 hook_layer = '12'
 hook_name = 'hook_resid_post'
@@ -51,7 +50,7 @@ QWEN3_SAE_Config = SAEConfig(
 print(f'Model dim: {QWEN3_SAE_Config.d_in}, SAE dim: {QWEN3_SAE_Config.d_sae}')
 
 QWEN3_SAE_TRAIN_Config = TrainingConfig(
-    num_epochs=15,
+    num_epochs=10,
     batch_size=16,
     lr=1e-3,
     l1_coefficient=QWEN3_SAE_Config.l1_coefficient,
@@ -88,7 +87,7 @@ history = QWEN3_SAE_Trainer.train(
 QWEN3_SAE = QWEN3_SAE_Trainer.sae
 
 # Save model:
-model_path = f'sae_core/pretrained_models/qwen3_06B.{QWEN3_SAE_Trainer.hook_spec}.sae.sparsity{sparsity_penalty}.mse{mse_penalty}.kl{kl_penalty}.physics10.exp{sae_expansion}'
+model_path = f'sae_core/pretrained_models/qwen3_06B.{QWEN3_SAE_Trainer.hook_spec}.sae.sparsity{sparsity_penalty}.mse{mse_penalty}.kl{kl_penalty}.physics.exp{sae_expansion}'
 QWEN3_SAE_Trainer.sae.save(model_path, history=history)
 
 print("Training Complete!")

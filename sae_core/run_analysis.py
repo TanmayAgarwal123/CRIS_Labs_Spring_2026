@@ -1,15 +1,9 @@
-"""
-Comprehensive SAE Analysis Script
-Optimized for headless GPU cluster execution
-"""
-
 import os
 from pathlib import Path
 import json
 import numpy as np
 from datetime import datetime
 
-# CRITICAL: Set matplotlib backend BEFORE importing pyplot
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for remote servers
 import matplotlib.pyplot as plt
@@ -19,7 +13,6 @@ from sae_core.full_analysis import SAEAnalyzer
 from sae_core.pretrained import load_pretrained
 from sae_core.data_processing.textbook_process import load_processed_data
 from transformer_lens import HookedTransformer
-
 
 def create_analysis_directories(base_path: str = 'analysis'):
     """Create organized directory structure for analysis outputs"""
@@ -414,12 +407,14 @@ if __name__ == "__main__":
     
     # Configuration
     MODEL_NAME = "qwen3-0.6b"
-    SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8'
+    SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4'
+    # SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8'
     LAYER = 12
     HOOK_NAME = 'hook_resid_post'
-    DATA_PATH = 'sae_core/data/processed_data/processed_physics_10_ch.json'
+    DATA_PATH = 'sae_core/data/processed_data/processed_physics_all.json'
+    # DATA_PATH = 'sae_core/data/processed_data/processed_physics_10_ch.json'
     BATCH_SIZE = 16
-    ANALYSIS_DIR = 'analysis'
+    ANALYSIS_DIR = 'analysis_reborn_final'
     
     try:
         # Run analysis
