@@ -171,7 +171,7 @@ def load_processed_data(input_path, format='json'):
 
 def load_and_process_multiple_files(
     file_paths,
-    num_files,
+    num_files=None,
     method='paragraphs',
     chunk_size=512,
     overlap=50,
@@ -180,11 +180,14 @@ def load_and_process_multiple_files(
     """Process multiple chapter files
     Args: 
         file_paths: list of paths to markdown files
+        num_files: optional count of files to process (default all)
         preserve_chapter_boundaries: bool for adding chapter metadata
     """
     all_segments = []
 
-    for i, file_path in enumerate(file_paths[:num_files]):
+    selected_paths = file_paths if num_files is None else file_paths[:num_files]
+
+    for i, file_path in enumerate(selected_paths):
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
 
@@ -209,25 +212,48 @@ def load_and_process_multiple_files(
 
 
 if __name__ == "__main__":
-    # file_path = 'sae_core/data/raw_data/elementary_study_chem.txt'
-    output_path = 'sae_core/data/processed_data/processed_physics_all.json'
+    base_chapter_dir = Path('sae_core/data/raw_data')
+    subject_folders = {
+        'physics': 'physics_chapters',
+        'chemistry': 'chemistry_chapters',
+        'biology': 'biology_chapters'
+    }
+    output_path = Path('sae_core/data/processed_data/processed_textbooks_all.json')
 
-    chapter_dir = Path('sae_core/data/raw_data/physics_chapters')
-    chapter_files = sorted(chapter_dir.glob('*.md'))
+    # Shared processing options
+    method = 'paragraphs'
+    chunk_size = 512
+    overlap = 50
+    preserve_chapter_boundaries = False
 
-    if not chapter_files:
-        raise FileNotFoundError(f"No .md files found in {chapter_dir}")
-    
-    print(f"Found {len(chapter_files)} chapter files")
+    combined_segments = []
 
-    text_list = load_and_process_multiple_files(
-        chapter_files,
-        num_files=34,
-        method='paragraphs',
-        preserve_chapter_boundaries=False
-    )
-    print(f"Processed {len(text_list)} text segments")
-    print(f"First segment: {text_list[0] if isinstance(text_list[0],str) else text_list[0]['text'][:200]}...")
-    
-    save_processed_data(text_list, output_path)
-    print(f"Saved to {output_path}")
+    for subject, folder_name in subject_folders.items():
+        chapter_dir = base_chapter_dir / folder_name
+        chapter_files = sorted(chapter_dir.glob('*.md'))
+
+        if not chapter_files:
+            raise FileNotFoundError(f"No .md files found in {chapter_dir}")
+
+        print(f"[{subject}] Found {len(chapter_files)} chapter files")
+
+        subject_segments = load_and_process_multiple_files(
+            chapter_files,
+            num_files=None,
+            method=method,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            preserve_chapter_boundaries=preserve_chapter_boundaries
+        )
+
+        print(f"[{subject}] Processed {len(subject_segments)} text segments")
+        combined_segments.extend(subject_segments)
+
+    print(f"Total segments combined: {len(combined_segments)}")
+    if combined_segments:
+        sample_entry = combined_segments[0]
+        preview = sample_entry if isinstance(sample_entry, str) else sample_entry.get('text', '')
+        print(f"Sample segment: {preview[:200]}...")
+
+    save_processed_data(combined_segments, output_path)
+    print(f"Saved combined dataset to {output_path}")

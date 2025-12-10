@@ -1,12 +1,6 @@
 import torch
-import torch.nn as nn
-from torch import Tensor
 from dataclasses import dataclass
-from typing import Tuple, Dict, Any
-import json
-from pathlib import Path
-
-from sae_core.utils.mapping import DTYPE_MAP
+from typing import Dict, Any, Optional
 
 @dataclass
 class SAEConfig:
@@ -20,6 +14,15 @@ class SAEConfig:
     hook_layer: str = "14"
     hook_name: str = "mlp_out"
     hook_spec: str = f"blocks.{hook_layer}.{hook_name}"
+    top_k: Optional[int] = None
+    top_k_aux: Optional[int] = None
+    n_batches_to_dead: int = 200
+    aux_penalty: float = 1 / 32
+
+    def __post_init__(self):
+        """Keep backwards-compatible aliases and sensible defaults."""
+        if self.top_k_aux is None and self.top_k is not None:
+            self.top_k_aux = max(1, self.top_k // 2)
 
     @property
     def torch_dtype(self) -> torch.dtype:
@@ -39,7 +42,12 @@ class SAEConfig:
             "use_error_term": self.use_error_term,
             "hook_layer": self.hook_layer,
             "hook_name": self.hook_name,
-            "hook_spec": self.hook_spec
+            "hook_spec": self.hook_spec,
+            "topk": self.topk,
+            "top_k": self.top_k,
+            "top_k_aux": self.top_k_aux,
+            "n_batches_to_dead": self.n_batches_to_dead,
+            "aux_penalty": self.aux_penalty,
         }
     
     @classmethod

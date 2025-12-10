@@ -4,6 +4,7 @@ import json
 import numpy as np
 from datetime import datetime
 
+import torch
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for remote servers
 import matplotlib.pyplot as plt
@@ -13,6 +14,27 @@ from sae_core.full_analysis import SAEAnalyzer
 from sae_core.pretrained import load_pretrained
 from sae_core.data_processing.textbook_process import load_processed_data
 from transformer_lens import HookedTransformer
+
+
+def get_compute_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+DEVICE = get_compute_device()
+TORCH_DTYPE = torch.float16 if DEVICE in {"cuda", "mps"} else torch.float32
+DTYPE_STR = str(TORCH_DTYPE).replace("torch.", "")
+NUM_DEVICES = torch.cuda.device_count() if DEVICE == "cuda" else 1
+
+FROM_PRETRAINED_KWARGS = {
+    "trust_remote_code": True,
+    "torch_dtype": TORCH_DTYPE,
+}
+if NUM_DEVICES > 1:
+    FROM_PRETRAINED_KWARGS["device_map"] = "auto"
 
 def create_analysis_directories(base_path: str = 'analysis'):
     """Create organized directory structure for analysis outputs"""
@@ -84,7 +106,13 @@ def run_comprehensive_analysis(
     # ========================================
     print("\n[1/9] Loading model, SAE, and data...")
     
-    model = HookedTransformer.from_pretrained(model_name)
+    model = HookedTransformer.from_pretrained(
+        model_name,
+        device=DEVICE,
+        dtype=DTYPE_STR,
+        n_devices=max(1, NUM_DEVICES),
+        **FROM_PRETRAINED_KWARGS,
+    )
     print(f"✓ Loaded model: {model_name}")
     
     sae, history = load_pretrained(sae_path, load_history=True)
@@ -350,25 +378,6 @@ Generated: {timestamp}
 - SAE Reconstruction Loss: {results['ablation']['sae_reconstruction_loss']:.4f}
 - Loss Recovered: {results['ablation']['loss_recovered']*100:.2f}%
 
-## Directory Structure
-```
-analysis/
-├── SUMMARY_{timestamp}.json          # This summary
-├── config_{timestamp}.json           # Run configuration
-├── activation_database/              # Activation database
-├── matrices/                         # Similarity & co-occurrence matrices
-├── results/                          # Detailed analysis results
-└── plots/                            # All visualizations
-    ├── training_history.png
-    ├── sparsity_overview.png
-    ├── reconstruction_quality.png
-    ├── similarity_heatmap.png
-    ├── cooccurrence_heatmap.png
-    └── dashboards/                   # Per-feature dashboards
-        ├── feature_*_dashboard.png
-        └── feature_*_distribution.png
-```
-
 ## Top 10 Most Active Features
 {', '.join(map(str, top_feature_indices.tolist()))}
 
@@ -407,9 +416,9 @@ if __name__ == "__main__":
     
     # Configuration
     MODEL_NAME = "qwen3-0.6b"
-    SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4'
+    SAE_PATH = 'qwen3_06B.blocks.9.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4'
     # SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8'
-    LAYER = 12
+    LAYER = 9
     HOOK_NAME = 'hook_resid_post'
     DATA_PATH = 'sae_core/data/processed_data/processed_physics_all.json'
     # DATA_PATH = 'sae_core/data/processed_data/processed_physics_10_ch.json'

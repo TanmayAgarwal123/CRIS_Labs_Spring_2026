@@ -17,11 +17,14 @@ class TrainingConfig:
     batch_size: int = 32
     lr: float = 1e-3
     l1_coefficient: float = 0.01
+    num_dataloader_workers: int = 0
+    pin_memory: bool = False
+    persistent_workers: bool = False
     
     use_end_to_end: bool = True
     reconstruction_loss_weight: float = 1  # Weight for local reconstruction
     
-    use_block_mse: bool = True
+    use_block_mse: bool = False
     block_mse_weight: float = 0.1     # Might have to turn this into a list if want layer-specific weights
     block_mse_layers: Optional[List[int]] = None  # Which blocks to compute MSE at
     

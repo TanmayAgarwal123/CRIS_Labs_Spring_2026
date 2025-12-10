@@ -9,6 +9,8 @@ from scipy import sparse
 from dataclasses import dataclass
 import pickle
 from pathlib import Path
+import tempfile
+from numpy.lib.format import open_memmap
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -221,12 +223,32 @@ class SAEAnalyzer:
         print(f"Hook point: {self.hook_point}")
         print(f"SAE Dim: {self.sae.cfg.d_in} -> {self.sae.cfg.d_sae}")
         print(f"Dataset: {len(self.dataset)} texts")
+        self.pad_token_id = self._resolve_pad_token_id()
 
     def reset_model_state(self):
         """Clear all hooks and GPU cache"""
         self.model.reset_hooks()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+    def _resolve_pad_token_id(self) -> int:
+        token_id = self.model.tokenizer.pad_token_id
+        if token_id is None:
+            token_id = self.model.tokenizer.eos_token_id
+        if token_id is None:
+            raise ValueError("Tokenizer must provide a pad_token_id or eos_token_id")
+        return token_id
+
+    def _prepare_square_matrix(self, n_features: int, save_path: Optional[str], filename_prefix: str):
+        """Allocate on-disk storage for large NxN matrices."""
+        if save_path is None:
+            tmp_dir = Path(tempfile.mkdtemp())
+            save_path = tmp_dir / f"{filename_prefix}.npy"
+        else:
+            save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        matrix = open_memmap(save_path, mode='w+', dtype=np.float32, shape=(n_features, n_features))
+        return matrix, save_path
     
     def collect_all_activations(
         self,
@@ -249,13 +271,15 @@ class SAEAnalyzer:
         
         self.reset_model_state()
 
-        all_activations = []
         token_metadata = []
         global_token_idx = 0
+        csr_indices: List[int] = []
+        csr_data: List[float] = []
+        csr_indptr = [0]
 
         # Track padding tokens
         padding_tokens_skipped = 0
-        pad_token_id = self.model.tokenizer.pad_token_id
+        pad_token_id = self.pad_token_id
         print(f"Pad token ID: {pad_token_id}")
 
         # Feature statistics
@@ -288,53 +312,58 @@ class SAEAnalyzer:
                     )
                     acts = cache[self.hook_point]   # [batch_size, seq_len, model_layer_dim]
 
-                    # Encode with SAE
-                    for batch_idx in range(acts.shape[0]):
+                    batch_size, seq_len, _ = acts.shape
+                    acts_flat = acts.reshape(-1, acts.shape[-1])
+                    tokens_flat = tokens.reshape(-1)
+                    pad_mask = tokens_flat == pad_token_id
+                    padding_tokens_skipped += pad_mask.sum().item()
+                    non_pad_mask = ~pad_mask
+                    valid_indices = non_pad_mask.nonzero(as_tuple=False).squeeze(-1)
+
+                    if valid_indices.numel() == 0:
+                        continue
+
+                    valid_tokens = tokens_flat[non_pad_mask]
+                    valid_acts = acts_flat[non_pad_mask]
+                    features = self.sae.encode(valid_acts)
+                    features_cpu = features.detach().cpu()
+                    valid_tokens_cpu = valid_tokens.detach().cpu()
+
+                    for local_idx, flat_idx in enumerate(valid_indices.tolist()):
+                        batch_idx = flat_idx // seq_len
+                        pos = flat_idx % seq_len
                         text_global_idx = text_idx + batch_idx
 
-                        for pos in range(acts.shape[1]):
-                            # Get token ID 
-                            token_id = tokens[batch_idx, pos].item()
-                            
-                            # Skip padding tokens (critical fix for Qwen)
-                            if token_id == pad_token_id:
-                                padding_tokens_skipped += 1
-                                continue
-                            
-                            # Get features for this token
-                            token_acts = acts[batch_idx, pos, :]
-                            features = self.sae.encode(token_acts.unsqueeze(0))[0]
+                        token_value = valid_tokens_cpu[local_idx].item()
+                        if token_value == pad_token_id:
+                            padding_tokens_skipped += 1
+                            continue
 
-                            # Get token string
-                            token_str = self.model.to_string(tokens[batch_idx, pos])
+                        token_tensor = tokens[batch_idx, pos].detach().cpu()
+                        token_str = self.model.to_string(token_tensor)
 
-                            # Store metadata
-                            metadata = TokenMetadata(
-                                global_idx=global_token_idx,
-                                text_idx=text_global_idx,
-                                position=pos,
-                                token_id=token_id,
-                                token_str=token_str
-                            )
-                            token_metadata.append(metadata)
+                        metadata = TokenMetadata(
+                            global_idx=global_token_idx,
+                            text_idx=text_global_idx,
+                            position=pos,
+                            token_id=int(token_value),
+                            token_str=token_str
+                        )
+                        token_metadata.append(metadata)
 
-                            # Store activations
-                            active_features = (features > activation_threshold).nonzero(as_tuple=True)[0]
+                        feature_row = features_cpu[local_idx]
+                        active_features = (feature_row > activation_threshold).nonzero(as_tuple=True)[0]
+                        active_values = feature_row[active_features]
+                        active_features_cpu = active_features.to(torch.long)
 
-                            for feature_idx in active_features:
-                                feature_idx_int = feature_idx.item()
-                                activation_value = features[feature_idx].item()
+                        csr_indices.extend(active_features_cpu.tolist())
+                        csr_data.extend(active_values.tolist())
+                        csr_indptr.append(len(csr_indices))
 
-                                all_activations.append((
-                                    global_token_idx,
-                                    feature_idx_int,
-                                    activation_value
-                                ))
+                        feature_activation_counts[active_features_cpu] += 1
+                        feature_total_activation[active_features_cpu] += active_values
 
-                                feature_activation_counts[feature_idx_int] += 1
-                                feature_total_activation[feature_idx_int] += activation_value
-
-                            global_token_idx += 1
+                        global_token_idx += 1
 
                 except Exception as e:
                     print(f"Error processing batch {text_idx//batch_size}: {e}")
@@ -344,13 +373,19 @@ class SAEAnalyzer:
 
         print(f"Processed {global_token_idx} tokens")
         print(f"Padding tokens skipped: {padding_tokens_skipped}")
-        print(f"Collected {len(all_activations)} non-zero activations")
+        non_zero_acts = len(csr_data)
+        print(f"Collected {non_zero_acts} non-zero activations")
 
-        rows, cols, values = zip(*all_activations) if all_activations else ([],[],[])
+        if global_token_idx == 0:
+            raise RuntimeError("No valid tokens collected for activation DB")
 
         activation_matrix = sparse.csr_matrix(
-            (values, (rows, cols)),
-            shape = (global_token_idx, self.sae.cfg.d_sae)
+            (
+                np.array(csr_data, dtype=np.float32),
+                np.array(csr_indices, dtype=np.int32),
+                np.array(csr_indptr, dtype=np.int64),
+            ),
+            shape=(global_token_idx, self.sae.cfg.d_sae)
         )
 
         feature_metadata = {
@@ -359,7 +394,7 @@ class SAEAnalyzer:
             'activation_counts': feature_activation_counts.tolist(),
             'total_activations': feature_total_activation.tolist(),
             'mean_activation': (feature_total_activation / (feature_activation_counts + 1e-8)).tolist(),
-            'sparsity': 1.0 - (len(all_activations) / (global_token_idx * self.sae.cfg.d_sae))
+            'sparsity': 1.0 - (non_zero_acts / (global_token_idx * self.sae.cfg.d_sae))
         }
 
         print(f"Matrix shape: {activation_matrix.shape}")
@@ -384,46 +419,51 @@ class SAEAnalyzer:
     def compute_feature_similarity(
         self,
         save_path: Optional[str] = None,
-        similarity_metric: str = 'cosine'
+        similarity_metric: str = 'cosine',
+        chunk_size: int = 1024
     ) -> np.ndarray:
         """
         Compute pairwise similarity between SAE features based on decoder weights
-        Features with similar decoder directions should represent similar concepts
-        Returns a similarity matrix [n_features x n_features]
+        without materializing the full matrix in memory.
         """
-        print(f"Compution feature similarity using {similarity_metric}")
+        print(f"Computing feature similarity using {similarity_metric} (chunk_size={chunk_size})")
 
-        # Get decoder weights [d_sae, d_in]
-        decoder = self.sae.W_dec.detach().cpu()
+        decoder = self.sae.W_dec.detach().float().cpu()
         n_features = decoder.shape[0]
 
         if similarity_metric == 'cosine':
-            # Normalize each feature's decoder
-            decoder_normalized = decoder / (decoder.norm(dim=1, keepdim=True) + 1e-8)
-
-            # Compute pairwise cos similarity
-            similarity = decoder_normalized @ decoder_normalized.T
-
-        elif similarity_metric == 'dot':
-            similarity = decoder @ decoder.T
-
+            decoder = decoder / (decoder.norm(dim=1, keepdim=True) + 1e-8)
         elif similarity_metric == 'euclidean':
-            # We'll do negative euclidean distance so higher is more similar
-            decoder_sq = (decoder **2).sum(dim=1, keepdim=True)
-            distances = decoder_sq + decoder_sq.T - 2*(decoder @ decoder.T)
-            similarity = -torch.sqrt(torch.clamp(distances, min=0))
-
-        else:
+            decoder_norm_sq = (decoder ** 2).sum(dim=1, keepdim=True)
+        elif similarity_metric != 'dot':
             raise ValueError(f"Unknown similarity metric: {similarity_metric}")
-        
-        self.feature_similarity = similarity.numpy()
 
+        storage, storage_path = self._prepare_square_matrix(
+            n_features,
+            save_path,
+            filename_prefix='feature_similarity'
+        )
+
+        decoder_t = decoder.T.contiguous()
+        iterator = range(0, n_features, chunk_size)
+        iterator = tqdm(iterator, desc="Similarity chunks") if n_features > chunk_size else iterator
+
+        for start in iterator:
+            end = min(start + chunk_size, n_features)
+            block = decoder[start:end]
+            if similarity_metric in ('cosine', 'dot'):
+                sims = block @ decoder_t
+            else:  # euclidean
+                block_sq = decoder_norm_sq[start:end]
+                distances = block_sq + decoder_norm_sq.T - 2 * (block @ decoder_t)
+                sims = -torch.sqrt(torch.clamp(distances, min=0.0))
+            storage[start:end, :] = sims.numpy()
+
+        storage.flush()
         print(f"Computed {n_features}x{n_features} similarity matrix")
+        print(f"Similarity matrix stored at {storage_path}")
 
-        if save_path is not None:
-            np.save(save_path, self.feature_similarity)
-            print(f"Saved similarity matrix to {save_path}")
-
+        self.feature_similarity = storage
         return self.feature_similarity
     
     def find_similar_features(
@@ -519,7 +559,7 @@ class SAEAnalyzer:
         
         self.reset_model_state()
 
-        pad_token_id = self.model.tokenizer.pad_token_id
+        pad_token_id = self.pad_token_id
 
         # Running stats
         l0_sum = 0.0
@@ -658,7 +698,7 @@ class SAEAnalyzer:
         
         self.reset_model_state()
 
-        pad_token_id = self.model.tokenizer.pad_token_id
+        pad_token_id = self.pad_token_id
 
         # Running stats
         mse_sum = 0.0
@@ -768,9 +808,7 @@ class SAEAnalyzer:
         self.reset_model_state()
 
         # Get padding token for loss computation
-        pad_token_id = self.model.tokenizer.pad_token_id
-        if pad_token_id is None:
-            pad_token_id = self.model.tokenizer.eos_token_id
+        pad_token_id = self.pad_token_id
 
         loss_baseline_sum = 0.0
         loss_zero_sum = 0.0
@@ -947,110 +985,82 @@ class SAEAnalyzer:
         return results
     
     def compute_feature_cooccurrence(
-    self,
-    min_activation: float = 0.0,
-    method: str = 'correlation',
-    save_path: Optional[str] = None,
-    chunk_size: int = 1000
-) -> np.ndarray:
-        """
-        Compute feature co-occurrence matrix
-        
-        Args:
-            min_activation: Threshold for considering a feature "active"
-            method: 'correlation', 'jaccard', or 'pmi' (pointwise mutual information)
-            save_path: Optional path to save the co-occurrence matrix
-            chunk_size: Process features in chunks to manage memory
-            
-        Returns:
-            Co-occurrence matrix [n_features x n_features]
-        """
+        self,
+        min_activation: float = 0.0,
+        method: str = 'correlation',
+        save_path: Optional[str] = None,
+        chunk_size: int = 512
+    ) -> np.ndarray:
+        """Compute feature co-occurrence matrix in chunks to limit memory usage."""
         if self.activation_db is None:
             raise ValueError("Must collect activations into db first")
-        
-        print(f"Computing feature co-occurrence using {method}")
-        
-        n_features = self.activation_db.activation_matrix.shape[1]
-        n_tokens = self.activation_db.activation_matrix.shape[0]
-        
-        # Binarize the activation matrix (feature active or not)
-        binary_matrix = (self.activation_db.activation_matrix > min_activation).astype(np.float32)
-        
-        if method == 'correlation':
-            # Pearson correlation between feature activation patterns
-            # For memory efficiency, compute in chunks
-            print("Computing correlation matrix...")
-            cooccurrence = np.zeros((n_features, n_features), dtype=np.float32)
-            
-            for i in tqdm(range(0, n_features, chunk_size), desc="Correlation chunks"):
-                end_i = min(i + chunk_size, n_features)
-                chunk = binary_matrix[:, i:end_i].toarray()
-                
-                # Compute correlation with all features
-                for j in range(0, n_features, chunk_size):
-                    end_j = min(j + chunk_size, n_features)
-                    chunk_j = binary_matrix[:, j:end_j].toarray()
-                    
-                    # Compute correlation
-                    cooccurrence[i:end_i, j:end_j] = np.corrcoef(
-                        chunk.T, chunk_j.T
-                    )[:chunk.shape[1], chunk.shape[1]:]
-            
-            # Handle NaNs (features that never activate)
-            cooccurrence = np.nan_to_num(cooccurrence, nan=0.0)
-            
-        elif method == 'jaccard':
-            # Jaccard similarity: |A ∩ B| / |A ∪ B|
-            print("Computing Jaccard similarity...")
-            cooccurrence = np.zeros((n_features, n_features), dtype=np.float32)
-            
-            for i in tqdm(range(n_features), desc="Jaccard similarity"):
-                feature_i = binary_matrix[:, i].toarray().ravel()
-                
-                for j in range(i, n_features):
-                    feature_j = binary_matrix[:, j].toarray().ravel()
-                    
-                    intersection = np.sum(feature_i * feature_j)
-                    union = np.sum(np.maximum(feature_i, feature_j))
-                    
-                    if union > 0:
-                        jaccard = intersection / union
-                        cooccurrence[i, j] = jaccard
-                        cooccurrence[j, i] = jaccard
-        
-        elif method == 'pmi':
-            # Pointwise Mutual Information
-            print("Computing PMI...")
-            cooccurrence = np.zeros((n_features, n_features), dtype=np.float32)
-            
-            # Compute P(feature_i)
-            p_features = np.array(binary_matrix.sum(axis=0)).ravel() / n_tokens
-            
-            for i in tqdm(range(n_features), desc="PMI"):
-                feature_i = binary_matrix[:, i].toarray().ravel()
-                
-                for j in range(i, n_features):
-                    feature_j = binary_matrix[:, j].toarray().ravel()
-                    
-                    # P(i and j)
-                    p_ij = np.sum(feature_i * feature_j) / n_tokens
-                    
-                    if p_ij > 0 and p_features[i] > 0 and p_features[j] > 0:
-                        pmi = np.log(p_ij / (p_features[i] * p_features[j]))
-                        cooccurrence[i, j] = pmi
-                        cooccurrence[j, i] = pmi
-        
+
+        print(f"Computing feature co-occurrence using {method} (chunk_size={chunk_size})")
+
+        activation_matrix = self.activation_db.activation_matrix.copy().astype(np.float32)
+        n_tokens, n_features = activation_matrix.shape
+
+        if min_activation > 0:
+            mask = activation_matrix.data > min_activation
+            activation_matrix.data = mask.astype(np.float32)
+            activation_matrix.eliminate_zeros()
         else:
-            raise ValueError(f"Unknown method: {method}")
-        
+            activation_matrix.data = np.ones_like(activation_matrix.data, dtype=np.float32)
+
+        feature_counts = np.asarray(activation_matrix.sum(axis=0)).ravel()
+        probs = feature_counts / max(n_tokens, 1)
+        denom_all = np.sqrt(np.clip(probs * (1 - probs), 1e-12, None))
+
+        storage, storage_path = self._prepare_square_matrix(
+            n_features,
+            save_path,
+            filename_prefix='feature_cooccurrence'
+        )
+
+        iterator = range(0, n_features, chunk_size)
+        iterator = tqdm(iterator, desc="Cooccurrence chunks") if n_features > chunk_size else iterator
+
+        for start in iterator:
+            end = min(start + chunk_size, n_features)
+            chunk = activation_matrix[:, start:end]
+            joint_counts = chunk.transpose().dot(activation_matrix).toarray()
+
+            if method == 'correlation':
+                joint = joint_counts / max(n_tokens, 1)
+                numer = joint - probs[start:end][:, None] * probs[None, :]
+                denom = denom_all[start:end][:, None] * denom_all[None, :]
+                block = np.divide(numer, denom + 1e-8, out=np.zeros_like(numer), where=denom > 0)
+            elif method == 'jaccard':
+                unions = (
+                    feature_counts[start:end][:, None] + feature_counts[None, :] - joint_counts
+                )
+                block = np.divide(
+                    joint_counts,
+                    unions,
+                    out=np.zeros_like(joint_counts),
+                    where=unions > 0
+                )
+            elif method == 'pmi':
+                joint = joint_counts / max(n_tokens, 1)
+                denom = probs[start:end][:, None] * probs[None, :]
+                ratio = np.divide(
+                    joint,
+                    denom + 1e-12,
+                    out=np.zeros_like(joint),
+                    where=denom > 0
+                )
+                block = np.log(np.clip(ratio, 1e-12, None))
+            else:
+                raise ValueError(f"Unknown method: {method}")
+
+            storage[start:end, :] = block.astype(np.float32)
+
+        storage.flush()
         print(f"Computed {n_features}x{n_features} co-occurrence matrix")
-        
-        if save_path is not None:
-            np.save(save_path, cooccurrence)
-            print(f"Saved co-occurrence matrix to {save_path}")
-        
-        self.feature_cooccurrence = cooccurrence
-        return cooccurrence
+        print(f"Co-occurrence matrix stored at {storage_path}")
+
+        self.feature_cooccurrence = storage
+        return self.feature_cooccurrence
 
 
     def find_coactivating_features(
