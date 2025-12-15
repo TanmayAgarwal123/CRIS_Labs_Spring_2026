@@ -31,7 +31,7 @@ from_pretrained_kwargs = {
 if NUM_DEVICES > 1:
     from_pretrained_kwargs["device_map"] = "auto"
 
-# Model + load configuration (edit here when scaling up models)
+# Model + load configuration 
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 MODEL_ID = MODEL_NAME.replace("/", "_")
 MODEL_LOAD_CONFIG = {
@@ -45,11 +45,11 @@ MODEL_LOAD_CONFIG = {
 }
 
 sae_expansion = 4
-sparsity_penalty = 3.0  # typically 0.01 without e2e + kl
+sparsity_penalty = 0.0  # Set to 0 when doing BatchTopK
 recon_weight = 1.0
 mse_penalty = 0.001
-kl_penalty = 1e-3
-topk=256
+kl_penalty = 1e-2
+topk=128
 
 def split_texts(texts, val_fraction=0.1, seed=0):
     if not texts:
@@ -91,20 +91,18 @@ def main():
         d_in = qwen3_model.cfg.d_model,
         d_sae = sae_expansion * qwen3_model.cfg.d_model,
         l1_coefficient = sparsity_penalty,
-        # dtype = str(qwen3_model.cfg.dtype).replace("torch.", ""),
         dtype="float32",
         device = MODEL_LOAD_CONFIG["device"],
-        use_error_term = False,
         hook_layer = hook_layer,
         hook_name = hook_name,
         hook_spec = hook_spec,
-        topk=topk
+        top_k=topk
     )
     print(f'Model dim: {QWEN3_SAE_Config.d_in}, SAE dim: {QWEN3_SAE_Config.d_sae}')
 
     QWEN3_SAE_TRAIN_Config = TrainingConfig(
-        num_epochs=1,
-        batch_size=4,
+        num_epochs=10,
+        batch_size=8,
         lr=1e-3,
         l1_coefficient=QWEN3_SAE_Config.l1_coefficient,
         use_end_to_end=True,
@@ -114,8 +112,10 @@ def main():
         use_logit_kl= True,
         logit_kl_weight=kl_penalty,
         log_freq=100,
+        early_stopping_patience=2,
+        early_stopping_min_delta=0.0,
         activation_batch_size=16,
-        max_text_length=256
+        max_text_length=512
     )
 
     QWEN3_SAE_Trainer = SAETrainer(
@@ -133,16 +133,23 @@ def main():
     history = QWEN3_SAE_Trainer.train(
         texts=train_texts,
         checkpoint_dir=str(checkpoint_dir),
-        checkpoint_freq=3,
+        checkpoint_freq=2,
         save_best=True,
         val_texts=val_texts if len(val_texts) > 0 else None,
     )
 
+    best_model_path = checkpoint_dir / "best_model.pt"
+    if best_model_path.exists():
+        print(f"Loading best checkpoint from {best_model_path}")
+        QWEN3_SAE_Trainer.sae = QWEN3_SAE_Trainer.sae.__class__.load(best_model_path, device=QWEN3_SAE_Config.device)
+    else:
+        print("Best checkpoint not found; exporting last-epoch weights.")
+
     QWEN3_SAE = QWEN3_SAE_Trainer.sae
 
     # Save model:
-    model_path = f'sae_core/pretrained_models/{MODEL_ID}.{QWEN3_SAE_Trainer.hook_spec}.btopksae.sparsity{sparsity_penalty}.kl{kl_penalty}.all.exp{sae_expansion}'
-    # model_path = f'sae_core/smoke_test_true'
+    model_path = f'sae_core/pretrained_models/{MODEL_ID}.{QWEN3_SAE_Trainer.hook_spec}.btop{topk}sae.all_science.exp{sae_expansion}'
+    # model_path = f'sae_core/smoke_test_early_stopping'
 
     QWEN3_SAE_Trainer.sae.save(model_path, history=history)
 
@@ -170,7 +177,6 @@ def main():
         checkpoints = sorted(checkpoint_dir.glob("*.pt"))
         for ckpt in checkpoints:
             print(f"  - {ckpt.name}")
-
 
 if __name__ == "__main__":
     main()

@@ -34,7 +34,9 @@ def train_sae(
         checkpoint_dir = Path(checkpoint_dir)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         print(f"Checkpointing enabled: saving to {checkpoint_dir}")
-    best_recon_loss = float('inf')
+    best_model_metric = float('inf')
+    best_val_loss = float('inf')
+    patience_counter = 0
 
     # Freeze model parameters - they won't be needing gradient updates
     for param in model.parameters():
@@ -103,17 +105,20 @@ def train_sae(
             if config.activation_batch_size is not None and config.activation_batch_size > 0:
                 x_chunks = []
                 f_chunks = []
+                dense_chunks = []
                 for start in range(0, real_acts.shape[0], config.activation_batch_size):
                     end = start + config.activation_batch_size
                     x_c, f_c = sae.forward(real_acts[start:end])
                     x_chunks.append(x_c)
                     f_chunks.append(f_c)
+                    if sae._last_dense_acts is not None:
+                        dense_chunks.append(sae._last_dense_acts.detach())
                 x_full = torch.cat(x_chunks, dim=0)
                 f_full = torch.cat(f_chunks, dim=0)
-                sae._last_dense_acts = f_full
+                if dense_chunks:
+                    sae._last_dense_acts = torch.cat(dense_chunks, dim=0)
                 return x_full, f_full
             x_recon_full, f_full = sae.forward(real_acts)
-            sae._last_dense_acts = f_full
             return x_recon_full, f_full
 
         x_recon, features = sae_forward_on_real_activations(activations_real)
@@ -131,7 +136,7 @@ def train_sae(
             loss = loss + aux_loss
             aux_loss_value = aux_loss.item()
 
-        sparsity_value = (features > 0).float().sum(dim=1).mean().item()
+        sparsity_value = (features > 0).float().sum(dim=1).mean().item()    # avg num of features per token
 
         block_mse_contribution = 0.0
         total_post_layer_mse = 0.0
@@ -288,12 +293,30 @@ def train_sae(
         print(f"    aux_loss: {history['aux_loss'][-1]:.4f}")
         print(f"    dead features: {dead_features}/{sae.cfg.d_sae} ({dead_feature_pct:.2f}%)")
 
+        stop_early = False
         if val_loader is not None:
             val_metrics, val_batches = evaluate(val_loader)
             if val_batches == 0:
                 raise RuntimeError("Validation loader produced zero usable batches.")
             for key in metric_keys:
                 history[f"val_{key}"].append(val_metrics[key] / val_batches)
+            current_val = history["val_loss"][-1]
+            threshold = best_val_loss - config.early_stopping_min_delta
+            if current_val < threshold:
+                best_val_loss = current_val
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if (
+                    config.early_stopping_patience is not None
+                    and patience_counter >= config.early_stopping_patience
+                ):
+                    print(
+                        f"    Early stopping triggered at epoch {epoch+1} "
+                        f"(best val_loss: {best_val_loss:.4f})"
+                    )
+                    stop_early = True
+
             print("    Validation:")
             print(f"        loss: {history['val_loss'][-1]:.4f}")
             print(f"          └─ recon_contribution: {history['val_recon_contribution'][-1]:.4f}")
@@ -311,11 +334,16 @@ def train_sae(
                 sae.save(str(checkpoint_path), history=history)
                 print(f"    Saved checkpoint to {checkpoint_path}")
 
-            if save_best and history['recon_loss'][-1] < best_recon_loss:
-                best_recon_loss = history['recon_loss'][-1]
+            metric_key = "val_loss" if val_loader is not None else "recon_loss"
+            current_metric = history[metric_key][-1]
+            if save_best and current_metric < best_model_metric:
+                best_model_metric = current_metric
                 best_model_path = checkpoint_dir / "best_model.pt"
                 sae.save(str(best_model_path), history=history)
-                print(f"    New best model (recon_loss: {best_recon_loss:.4f}) Saved to {best_model_path}")
+                print(f"    New best model ({metric_key}: {best_model_metric:.4f}) Saved to {best_model_path}")
+
+        if stop_early:
+            break
 
     return history
 

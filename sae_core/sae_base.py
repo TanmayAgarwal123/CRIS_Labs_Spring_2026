@@ -18,7 +18,6 @@ class SAE(nn.Module):
         self.cfg = cfg
         self.dtype = cfg.torch_dtype
         self.device = torch.device(cfg.device)
-        self.use_error_term = cfg.use_error_term
         self.hook_spec = cfg.hook_spec
         self._last_dense_acts: Optional[Tensor] = None
         self.register_buffer(
@@ -51,6 +50,7 @@ class SAE(nn.Module):
 
     def encode(self, x: Tensor) -> Tensor:
         """Encode input to sparse features."""
+        x = x.to(self.dtype)
         pre_acts = x @ self.W_enc + self.b_enc
         return torch.relu(pre_acts)
 
@@ -169,6 +169,7 @@ class BatchTopKSAE(SAE):
         )
 
     def encode(self, x: Tensor) -> Tensor:
+        x = x.to(self.dtype)
         pre_acts = x @ self.W_enc
         return torch.relu(pre_acts)
 
@@ -177,11 +178,15 @@ class BatchTopKSAE(SAE):
         x_cent = x - self.b_dec # center the x
 
         dense_acts = self.encode(x_cent) # get dense activations
+        added_seq_dim = False
+        if dense_acts.ndim == 2:
+            dense_acts = dense_acts.unsqueeze(1)
+            added_seq_dim = True
         self._last_dense_acts = dense_acts  # to save for later
 
         # Flatten all activations into a single batch dimension
         orig_shape = dense_acts.shape   # [batch, seq_len, d_sae]
-        flat_acts = dense_acts.view(-1)     # [batch, seq_len, d_sae] --> [batch*seq_len*d_sae]
+        flat_acts = dense_acts.reshape(-1)     # [batch, seq_len, d_sae] --> [batch*seq_len*d_sae]
 
         B, S, d_sae = orig_shape
         N = B*S
@@ -191,12 +196,15 @@ class BatchTopKSAE(SAE):
         values, indices = torch.topk(flat_acts, k_total, dim=0)
 
         # sparse activations
-        sparse_flat = torch.zeros_like(flat_acts)   
+        sparse_flat = torch.zeros_like(flat_acts)
         sparse_flat[indices] = values
 
         sparse_acts = sparse_flat.view(orig_shape)
 
         x_recon = self.decode(sparse_acts)
+        if added_seq_dim:
+            x_recon = x_recon.squeeze(1)
+            sparse_acts = sparse_acts.squeeze(1)
         return x_recon, sparse_acts
 
     def update_inactive_features(self, features: Tensor) -> None:
@@ -213,6 +221,8 @@ class BatchTopKSAE(SAE):
         acts = self._last_dense_acts
         if acts is None:
             return None
+        if acts.ndim == 2:
+            acts = acts.unsqueeze(1)
 
         # calculate how many of the features were considered dead by our threshold
         dead_mask = self.num_batches_not_active >= self.cfg.n_batches_to_dead   # boolean vector of length d_sae
@@ -246,6 +256,10 @@ class BatchTopKSAE(SAE):
         # Get the dead features from the decoder matrix iteself
         decoder_slice = self.W_dec[dead_mask]   # [d_dead, d_in]
         x_recon_aux = sparse_acts @ decoder_slice + self.b_dec  # [B, S, d_in]
+        if x.ndim == 2:
+            x = x.unsqueeze(1)
+        if x_recon.ndim == 2:
+            x_recon = x_recon.unsqueeze(1)
         residual = (x - x_recon).to(torch.float32)  # the residual is what the SAE failed to explain
 
         # "Point" dead features at unexplained information

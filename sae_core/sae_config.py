@@ -10,7 +10,6 @@ class SAEConfig:
     l1_coefficient: float = 1  # sparsity penalty
     dtype: str = "float32" 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    use_error_term: bool = False
     hook_layer: str = "14"
     hook_name: str = "mlp_out"
     hook_spec: str = f"blocks.{hook_layer}.{hook_name}"
@@ -39,11 +38,9 @@ class SAEConfig:
             "l1_coefficient": self.l1_coefficient,
             "dtype": str(self.dtype).replace("torch.", "") if isinstance(self.dtype, torch.dtype) else self.dtype,
             "device": self.device,
-            "use_error_term": self.use_error_term,
             "hook_layer": self.hook_layer,
             "hook_name": self.hook_name,
             "hook_spec": self.hook_spec,
-            "topk": self.topk,
             "top_k": self.top_k,
             "top_k_aux": self.top_k_aux,
             "n_batches_to_dead": self.n_batches_to_dead,

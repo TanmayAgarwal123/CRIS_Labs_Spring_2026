@@ -113,7 +113,7 @@ class SAETrainer:
             texts=texts,
             tokenizer=self.model.tokenizer,
             max_length=self.train_cfg.max_text_length,
-            prepend_bos=True,
+            prepend_bos=False,
         )
 
         sample_tokens = dataset[0]
@@ -140,7 +140,7 @@ class SAETrainer:
                 texts=val_texts,
                 tokenizer=self.model.tokenizer,
                 max_length=self.train_cfg.max_text_length,
-                prepend_bos=True,
+                prepend_bos=False,
             )
             val_loader = DataLoader(
                 val_dataset,

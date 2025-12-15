@@ -33,6 +33,9 @@ class TrainingConfig:
     
     log_freq: int = 100
 
+    early_stopping_patience: Optional[int] = None  # epochs without val_loss improvement before stopping
+    early_stopping_min_delta: float = 0.0          # required improvement over best val_loss
+
     activation_batch_size: int = 16
     max_text_length: int = 256
     

@@ -1,18 +1,17 @@
+import json
+import pickle
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
-from transformer_lens import HookedTransformer
-import numpy as np
-from typing import List, Dict, Tuple, Optional
-from tqdm import tqdm
-import heapq
-from scipy import sparse
-from dataclasses import dataclass
-import pickle
-from pathlib import Path
-import tempfile
 from numpy.lib.format import open_memmap
-import matplotlib.pyplot as plt
-import seaborn as sns
+from scipy import sparse
+from tqdm import tqdm
+from transformer_lens import HookedTransformer
 
 from sae_core.pretrained import load_pretrained
 
@@ -41,7 +40,7 @@ class ActivationDatabase:
         self,
         activation_matrix: sparse.csr_matrix,   # compressed sparse row matrix for memory efficiency
         token_metadata: List[TokenMetadata],
-        feature_metadata: Dict[str, any]
+        feature_metadata: Dict[str, Any]
     ):
         self.activation_matrix = activation_matrix
         self.token_metadata = token_metadata
@@ -119,7 +118,7 @@ class ActivationDatabase:
             token_idx: int,
             model: HookedTransformer,
             context_size: int = 10
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Get contextual information about a token
         Returns a dictionary with token string, position, surrouding context, etc.
@@ -249,6 +248,43 @@ class SAEAnalyzer:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         matrix = open_memmap(save_path, mode='w+', dtype=np.float32, shape=(n_features, n_features))
         return matrix, save_path
+
+    def _encode_sparse_features(self, acts: torch.Tensor) -> torch.Tensor:
+        """
+        Encode activations using the SAE, returning the sparse feature activations
+        in the same way the SAE is used during forward passes.
+        """
+        sae_dtype = getattr(self.sae, "dtype", acts.dtype)
+        x = acts.to(sae_dtype)
+        if hasattr(self.sae, "b_dec"):
+            x = x - self.sae.b_dec
+
+        dense = self.sae.encode(x)
+
+        # BatchTopKSAE-style sparsification
+        if hasattr(self.sae, "top_k") and self.sae.top_k is not None:
+            added_seq_dim = False
+            if dense.ndim == 2:
+                dense = dense.unsqueeze(1)
+                added_seq_dim = True
+
+            orig_shape = dense.shape  # [B, S, d_sae]
+            flat = dense.reshape(-1)
+
+            n_tokens = orig_shape[0] * orig_shape[1]
+            k_total = min(n_tokens * int(self.sae.top_k), flat.numel())
+
+            sparse_flat = torch.zeros_like(flat)
+            if k_total > 0:
+                values, indices = torch.topk(flat, k_total, dim=0)
+                sparse_flat[indices] = values
+            sparse = sparse_flat.view(orig_shape)
+            if added_seq_dim:
+                sparse = sparse.squeeze(1)
+        else:
+            sparse = dense
+
+        return sparse.to(torch.float32)
     
     def collect_all_activations(
         self,
@@ -283,8 +319,9 @@ class SAEAnalyzer:
         print(f"Pad token ID: {pad_token_id}")
 
         # Feature statistics
-        feature_activation_counts = torch.zeros(self.sae.cfg.d_sae)
-        feature_total_activation = torch.zeros(self.sae.cfg.d_sae)
+        feature_activation_counts = torch.zeros(self.sae.cfg.d_sae, dtype=torch.int64)
+        feature_total_activation = torch.zeros(self.sae.cfg.d_sae, dtype=torch.float64)
+        ever_fired_mask = torch.zeros(self.sae.cfg.d_sae, dtype=torch.bool)
 
         print(f"Collecting activations from {len(texts)} texts")
 
@@ -292,7 +329,7 @@ class SAEAnalyzer:
             batch_texts = texts[text_idx: text_idx+batch_size]
 
             try:
-                tokens = self.model.to_tokens(batch_texts, prepend_bos=True)
+                tokens = self.model.to_tokens(batch_texts, prepend_bos=False)
                 tokens = tokens.to(self.device) # [batch_size, seq_len]
 
                 if tokens.numel() == 0:  # skip token if it's an empty tensor
@@ -318,16 +355,22 @@ class SAEAnalyzer:
                     pad_mask = tokens_flat == pad_token_id
                     padding_tokens_skipped += pad_mask.sum().item()
                     non_pad_mask = ~pad_mask
-                    valid_indices = non_pad_mask.nonzero(as_tuple=False).squeeze(-1)
 
-                    if valid_indices.numel() == 0:
+                    if non_pad_mask.sum().item() == 0:
                         continue
 
                     valid_tokens = tokens_flat[non_pad_mask]
                     valid_acts = acts_flat[non_pad_mask]
-                    features = self.sae.encode(valid_acts)
+                    features = self._encode_sparse_features(valid_acts)
                     features_cpu = features.detach().cpu()
                     valid_tokens_cpu = valid_tokens.detach().cpu()
+
+                    batch_active_mask = features_cpu > activation_threshold
+                    feature_activation_counts += batch_active_mask.sum(dim=0).to(feature_activation_counts.dtype)
+                    feature_total_activation += (features_cpu * batch_active_mask).sum(dim=0).to(feature_total_activation.dtype)
+                    ever_fired_mask |= batch_active_mask.any(dim=0)
+
+                    valid_indices = non_pad_mask.nonzero(as_tuple=False).squeeze(-1)
 
                     for local_idx, flat_idx in enumerate(valid_indices.tolist()):
                         batch_idx = flat_idx // seq_len
@@ -351,17 +394,12 @@ class SAEAnalyzer:
                         )
                         token_metadata.append(metadata)
 
-                        feature_row = features_cpu[local_idx]
-                        active_features = (feature_row > activation_threshold).nonzero(as_tuple=True)[0]
-                        active_values = feature_row[active_features]
-                        active_features_cpu = active_features.to(torch.long)
-
-                        csr_indices.extend(active_features_cpu.tolist())
-                        csr_data.extend(active_values.tolist())
+                        active_features = batch_active_mask[local_idx].nonzero(as_tuple=True)[0]
+                        if active_features.numel() > 0:
+                            active_values = features_cpu[local_idx, active_features]
+                            csr_indices.extend(active_features.tolist())
+                            csr_data.extend(active_values.tolist())
                         csr_indptr.append(len(csr_indices))
-
-                        feature_activation_counts[active_features_cpu] += 1
-                        feature_total_activation[active_features_cpu] += active_values
 
                         global_token_idx += 1
 
@@ -388,13 +426,19 @@ class SAEAnalyzer:
             shape=(global_token_idx, self.sae.cfg.d_sae)
         )
 
+        mean_activation = torch.zeros_like(feature_total_activation, dtype=torch.float64)
+        nonzero_mask = feature_activation_counts > 0
+        mean_activation[nonzero_mask] = feature_total_activation[nonzero_mask] / feature_activation_counts[nonzero_mask].clamp(min=1)
+
         feature_metadata = {
             'n_features': self.sae.cfg.d_sae,
             'n_tokens': global_token_idx,
             'activation_counts': feature_activation_counts.tolist(),
             'total_activations': feature_total_activation.tolist(),
-            'mean_activation': (feature_total_activation / (feature_activation_counts + 1e-8)).tolist(),
-            'sparsity': 1.0 - (non_zero_acts / (global_token_idx * self.sae.cfg.d_sae))
+            'mean_activation': mean_activation.tolist(),
+            'sparsity': 1.0 - (non_zero_acts / (global_token_idx * self.sae.cfg.d_sae)),
+            'ever_fired': ever_fired_mask.tolist(),
+            'activation_threshold': activation_threshold
         }
 
         print(f"Matrix shape: {activation_matrix.shape}")
@@ -566,14 +610,15 @@ class SAEAnalyzer:
         l0_sq_sum = 0.0
         l1_sum = 0.0
         l1_sq_sum = 0.0
-        feature_counts = torch.zeros(self.sae.cfg.d_sae, device='cpu')
+        feature_counts = torch.zeros(self.sae.cfg.d_sae, device='cpu', dtype=torch.float64)
+        ever_fired = torch.zeros(self.sae.cfg.d_sae, device='cpu', dtype=torch.bool)
         n_tokens_total = 0
 
         for i in tqdm(range(0, len(texts), batch_size), desc="Sparsity"):
             batch_texts = texts[i:i+batch_size]
 
             try:
-                tokens = self.model.to_tokens(batch_texts, prepend_bos=True)
+                tokens = self.model.to_tokens(batch_texts, prepend_bos=False)
                 tokens = tokens.to(self.device)
 
                 if tokens.numel() == 0:
@@ -602,18 +647,20 @@ class SAEAnalyzer:
                     if acts_flat.shape[0] == 0:
                         continue
 
-                    features = self.sae.encode(acts_flat)
+                    features = self._encode_sparse_features(acts_flat)
+                    active_mask = features > 0
 
-                    l0_per_token = (features > 0).float().sum(dim=1)
+                    l0_per_token = active_mask.sum(dim=1).to(torch.float64)
                     l0_sum += l0_per_token.sum().item()
-                    l0_sq_sum += (l0_per_token **2).sum().item()
+                    l0_sq_sum += (l0_per_token ** 2).sum().item()
 
-                    l1_per_token = features.abs().sum(dim=1)
+                    l1_per_token = features.abs().sum(dim=1).to(torch.float64)
                     l1_sum += l1_per_token.sum().item()
                     l1_sq_sum += (l1_per_token ** 2).sum().item()
 
-                    feature_active = (features > 0).float().sum(dim=0).cpu()
+                    feature_active = active_mask.sum(dim=0).cpu().to(torch.float64)
                     feature_counts += feature_active
+                    ever_fired |= active_mask.any(dim=0).cpu()
 
                     n_tokens_total += acts_flat.shape[0]
 
@@ -625,7 +672,7 @@ class SAEAnalyzer:
 
         if n_tokens_total == 0:
             raise RuntimeError("Failed to process any tokens")
-        
+
         l0_mean = l0_sum / n_tokens_total
         l0_var = (l0_sq_sum / n_tokens_total) - (l0_mean ** 2)
         l0_std = np.sqrt(max(0, l0_var))
@@ -635,6 +682,7 @@ class SAEAnalyzer:
         l1_std = np.sqrt(max(0, l1_var))
 
         feature_freq = (feature_counts / n_tokens_total).tolist()
+        self.feature_activation_mask = ever_fired
 
         metrics = {
             'l0_mean': l0_mean,
@@ -656,17 +704,25 @@ class SAEAnalyzer:
     def find_dead_features(
         self,
         feature_freq: List[float],
-        threshold: float = 0.0
-    ) -> Dict[str, any]:
+        threshold: float = 0.0,
+        use_training_metric: bool = False
+    ) -> Dict[str, Any]:
         """
         Identify features that rarely or never activate
         Returns dictionary with dead feature stats
         """
-        feature_freq_tensor = torch.tensor(feature_freq)
-        dead_mask = feature_freq_tensor < threshold
+        if use_training_metric:
+            if hasattr(self, "feature_activation_mask"):
+                dead_mask = ~self.feature_activation_mask
+            elif self.activation_db is not None and 'ever_fired' in self.activation_db.feature_metadata:
+                dead_mask = ~torch.tensor(self.activation_db.feature_metadata['ever_fired'], dtype=torch.bool)
+            else:
+                dead_mask = torch.tensor(feature_freq) < threshold
+        else:
+            dead_mask = torch.tensor(feature_freq) < threshold
 
         n_dead = int(dead_mask.sum().item())
-        pct_dead = 100 * dead_mask.float().mean().item()
+        pct_dead = 100 * (n_dead / len(feature_freq) if len(feature_freq) else 0.0)
         dead_indices = dead_mask.nonzero(as_tuple=True)[0].tolist()
 
         print(f"Dead feature threshold: {threshold}")
@@ -676,7 +732,8 @@ class SAEAnalyzer:
             'n_dead': n_dead,
             'pct_dead': pct_dead,
             'dead_indices': dead_indices,
-            'threshold': threshold
+            'threshold': threshold,
+            'use_training_metric': use_training_metric
         }
     
     def compute_reconstruction_metrics(
@@ -711,7 +768,7 @@ class SAEAnalyzer:
             batch_texts = texts[i: i+batch_size]
 
             try:
-                tokens = self.model.to_tokens(batch_texts, prepend_bos=True)
+                tokens = self.model.to_tokens(batch_texts, prepend_bos=False)
                 tokens = tokens.to(self.device)
 
                 if tokens.numel() == 0:
@@ -738,21 +795,23 @@ class SAEAnalyzer:
                         continue
 
                     # SAE reconstruction
-                    x_recon, features = self.sae(acts_flat)
+                    x_recon, _ = self.sae(acts_flat)
+                    acts_metrics = acts_flat.to(torch.float32)
+                    x_recon = x_recon.to(torch.float32)
 
-                    residual = acts_flat - x_recon
+                    residual = acts_metrics - x_recon
                     mse = (residual **2).mean().item()
-                    mse_sum += mse * acts_flat.shape[0]
+                    mse_sum += mse * acts_metrics.shape[0]
 
-                    original_var_sum += acts_flat.var().item() * acts_flat.shape[0]
-                    residual_var_sum += residual.var().item() * acts_flat.shape[0]
+                    original_var_sum += acts_metrics.var().item() * acts_metrics.shape[0]
+                    residual_var_sum += residual.var().item() * acts_metrics.shape[0]
 
                     cos_sim = torch.nn.functional.cosine_similarity(
-                        acts_flat, x_recon, dim=1
+                        acts_metrics, x_recon, dim=1
                     ).mean().item()
-                    cos_sim_sum += cos_sim * acts_flat.shape[0]
+                    cos_sim_sum += cos_sim * acts_metrics.shape[0]
 
-                    n_tokens_total += acts_flat.shape[0]
+                    n_tokens_total += acts_metrics.shape[0]
 
                 except Exception as e:
                     print(f"Warning: Error processing batch {i//batch_size}: {e}")
@@ -819,7 +878,7 @@ class SAEAnalyzer:
             batch_texts = texts[i:i+batch_size]
             
             try:
-                tokens = self.model.to_tokens(batch_texts, prepend_bos=True)
+                tokens = self.model.to_tokens(batch_texts, prepend_bos=False)
                 tokens = tokens.to(self.device)
                 
                 if tokens.numel() == 0 or tokens.shape[1] < 2:
@@ -851,8 +910,8 @@ class SAEAnalyzer:
                     # 3. SAE reconstruction: Replace with SAE output
                     self.reset_model_state()
                     def sae_hook(acts, hook):
-                        x_recon, features = self.sae(acts)
-                        return x_recon
+                        x_recon, _ = self.sae(acts)
+                        return x_recon.to(dtype=acts.dtype)
                     
                     logits_sae = self.model.run_with_hooks(
                         tokens,
@@ -942,7 +1001,7 @@ class SAEAnalyzer:
     feature_idx: int,
     top_k: int = 10,
     context_size: int = 10
-) -> List[Dict[str, any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Find tokens/contexts that most strongly activate a feature.
         Uses pre-computed activation database if available.
@@ -1152,12 +1211,82 @@ class SAEAnalyzer:
                 print(f"  Context: {context['context']}")
                 print(f"  Co-active features: {[(f, round(v, 3)) for f, v in present_coactivations[:3]]}")
 
+    def generate_feature_summaries(
+        self,
+        save_path: str,
+        top_k: int = 25,
+        context_size: int = 10,
+        min_activation: float = 0.0,
+        max_features: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Create JSONL feature summaries with top activating examples for each feature.
+        """
+        if self.activation_db is None:
+            raise ValueError("Must collect activations into db first")
+
+        n_features = self.activation_db.activation_matrix.shape[1]
+        activation_counts = self.activation_db.feature_metadata.get('activation_counts', [0] * n_features)
+        mean_activation = self.activation_db.feature_metadata.get('mean_activation', [0.0] * n_features)
+
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        summaries = []
+        with open(save_path, "w") as f:
+            iterator = range(n_features)
+            iterator = tqdm(iterator, desc="Feature summaries") if n_features > 100 else iterator
+            for feature_idx in iterator:
+                freq = activation_counts[feature_idx]
+                if freq <= 0:
+                    continue
+
+                activations = self.activation_db.get_feature_activations(feature_idx, top_k=top_k)
+                if min_activation > 0:
+                    activations = [(t_idx, val) for t_idx, val in activations if val >= min_activation]
+                if len(activations) == 0:
+                    continue
+
+                examples = []
+                for token_idx, act_val in activations[:top_k]:
+                    context = self.activation_db.get_token_context(
+                        token_idx,
+                        self.model,
+                        context_size=context_size
+                    )
+                    examples.append({
+                        'token': context['token'],
+                        'activation': float(act_val),
+                        'context': context['context'],
+                        'position': context['position'],
+                        'text_idx': context['text_idx'],
+                        'global_idx': context['global_idx']
+                    })
+
+                summary = {
+                    'feature': feature_idx,
+                    'activation_frequency': float(freq),
+                    'mean_activation': float(mean_activation[feature_idx]),
+                    'top_examples': examples
+                }
+                f.write(json.dumps(summary) + "\n")
+                summaries.append(summary)
+
+                if max_features is not None and len(summaries) >= max_features:
+                    break
+
+        print(f"Saved feature summaries for {len(summaries)} features to {save_path}")
+        return summaries
+
     def run_full_analysis(
         self,
         texts: Optional[List[str]] = None,
         batch_size: int = 8,
-        save_path: Optional[str] = None
-    ) -> Dict[str, any]:
+        save_path: Optional[str] = None,
+        feature_summary_path: Optional[str] = None,
+        feature_summary_top_k: int = 25,
+        use_training_dead_metric: bool = False
+    ) -> Dict[str, Any]:
         """
         Run complete analysis suite and optionally save results
         
@@ -1181,7 +1310,10 @@ class SAEAnalyzer:
         
         # 2. Dead features
         print(f"\nIdentifying Dead Features...")
-        dead_features = self.find_dead_features(feature_freq)
+        dead_features = self.find_dead_features(
+            feature_freq,
+            use_training_metric=use_training_dead_metric
+        )
         results['dead_features'] = dead_features
         
         # 3. Reconstruction quality
@@ -1193,12 +1325,19 @@ class SAEAnalyzer:
         print(f"\nRunning Ablation Study...")
         ablation_metrics = self.ablation_study(texts, batch_size=4)
         results['ablation'] = ablation_metrics
+
+        # 5. Optional feature summaries (requires activation DB)
+        if feature_summary_path is not None:
+            if self.activation_db is None:
+                raise ValueError("Activation DB required to generate feature summaries. Run collect_all_activations first.")
+            self.generate_feature_summaries(
+                feature_summary_path,
+                top_k=feature_summary_top_k
+            )
+            results['feature_summaries'] = feature_summary_path
         
         # Save if requested
         if save_path is not None:
-            import json
-            from pathlib import Path
-            
             save_path = Path(save_path)
             save_path.parent.mkdir(parents=True, exist_ok=True)
             
@@ -1212,6 +1351,8 @@ class SAEAnalyzer:
                 'reconstruction': results['reconstruction'],
                 'ablation': results['ablation']
             }
+            if 'feature_summaries' in results:
+                results_json['feature_summaries'] = results['feature_summaries']
             
             with open(save_path, 'w') as f:
                 json.dump(results_json, f, indent=2)
@@ -1221,348 +1362,3 @@ class SAEAnalyzer:
         print(f"Analysis Complete!")
         
         return results
-    
-    def plot_activation_distribution(
-        self,
-        feature_idx: int,
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (10, 6)
-    ):
-        """
-        Plot the distribution of activation values for a specific feature
-        """
-        if self.activation_db is None:
-            raise ValueError("Must collect activations into db first")
-        
-        activations = self.activation_db.get_feature_activations(feature_idx)
-        
-        if len(activations) == 0:
-            print(f"Feature {feature_idx} never activated")
-            return
-        
-        activation_values = [act_val for _, act_val in activations]
-        
-        fig, axes = plt.subplots(1, 2, figsize=figsize)
-        
-        # Histogram
-        axes[0].hist(activation_values, bins=50, alpha=0.7, edgecolor='black')
-        axes[0].set_xlabel('Activation Value')
-        axes[0].set_ylabel('Frequency')
-        axes[0].set_title(f'Feature {feature_idx} Activation Distribution')
-        axes[0].grid(True, alpha=0.3)
-        
-        # Box plot
-        axes[1].boxplot(activation_values, vert=True)
-        axes[1].set_ylabel('Activation Value')
-        axes[1].set_title(f'Feature {feature_idx} Activation Statistics')
-        axes[1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved plot to {save_path}")
-        
-        plt.show()
-
-
-    def plot_feature_similarity_heatmap(
-        self,
-        feature_indices: Optional[List[int]] = None,
-        top_k: int = 50,
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (12, 10),
-        cmap: str = 'RdBu_r'
-    ):
-        """
-        Plot heatmap of feature similarity matrix
-        
-        Args:
-            feature_indices: Specific features to plot, or None for top-k most active
-            top_k: Number of features to plot if feature_indices is None
-        """
-        if self.feature_similarity is None:
-            raise ValueError("Must call compute_feature_similarity() first")
-        
-        # Select features to plot
-        if feature_indices is None:
-            # Use top-k most frequently activating features
-            if self.activation_db is None:
-                feature_indices = list(range(min(top_k, self.feature_similarity.shape[0])))
-            else:
-                freq = self.activation_db.feature_metadata['activation_counts']
-                feature_indices = np.argsort(freq)[-top_k:].tolist()
-        
-        # Extract submatrix
-        similarity_subset = self.feature_similarity[np.ix_(feature_indices, feature_indices)]
-        
-        # Plot
-        fig, ax = plt.subplots(figsize=figsize)
-        
-        sns.heatmap(
-            similarity_subset,
-            xticklabels=feature_indices,
-            yticklabels=feature_indices,
-            cmap=cmap,
-            center=0,
-            square=True,
-            linewidths=0.5,
-            cbar_kws={"label": "Similarity"},
-            ax=ax
-        )
-        
-        ax.set_title(f'Feature Similarity Heatmap (Top {len(feature_indices)} Features)')
-        ax.set_xlabel('Feature Index')
-        ax.set_ylabel('Feature Index')
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved heatmap to {save_path}")
-        
-        plt.show()
-
-
-    def plot_cooccurrence_heatmap(
-        self,
-        feature_indices: Optional[List[int]] = None,
-        top_k: int = 50,
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (12, 10)
-    ):
-        """
-        Plot heatmap of feature co-occurrence matrix
-        """
-        if not hasattr(self, 'feature_cooccurrence') or self.feature_cooccurrence is None:
-            raise ValueError("Must call compute_feature_cooccurrence() first")
-        
-        # Select features
-        if feature_indices is None:
-            if self.activation_db is None:
-                feature_indices = list(range(min(top_k, self.feature_cooccurrence.shape[0])))
-            else:
-                freq = self.activation_db.feature_metadata['activation_counts']
-                feature_indices = np.argsort(freq)[-top_k:].tolist()
-        
-        # Extract submatrix
-        cooccurrence_subset = self.feature_cooccurrence[np.ix_(feature_indices, feature_indices)]
-        
-        # Plot
-        fig, ax = plt.subplots(figsize=figsize)
-        
-        sns.heatmap(
-            cooccurrence_subset,
-            xticklabels=feature_indices,
-            yticklabels=feature_indices,
-            cmap='YlOrRd',
-            square=True,
-            linewidths=0.5,
-            cbar_kws={"label": "Co-occurrence Score"},
-            ax=ax
-        )
-        
-        ax.set_title(f'Feature Co-occurrence Heatmap (Top {len(feature_indices)} Features)')
-        ax.set_xlabel('Feature Index')
-        ax.set_ylabel('Feature Index')
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved heatmap to {save_path}")
-        
-        plt.show()
-
-
-    def plot_sparsity_distribution(
-        self,
-        metrics: Dict[str, float],
-        feature_freq: List[float],
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (15, 5)
-    ):
-        """
-        Visualize sparsity metrics and feature frequency distribution
-        """
-        fig, axes = plt.subplots(1, 3, figsize=figsize)
-        
-        # 1. Feature frequency distribution
-        axes[0].hist(feature_freq, bins=50, alpha=0.7, edgecolor='black')
-        axes[0].set_xlabel('Activation Frequency')
-        axes[0].set_ylabel('Number of Features')
-        axes[0].set_title('Feature Activation Frequency Distribution')
-        axes[0].set_yscale('log')
-        axes[0].grid(True, alpha=0.3)
-        
-        # 2. L0 summary
-        l0_data = [metrics['l0_mean']]
-        axes[1].bar(['L0'], l0_data, alpha=0.7, color='skyblue', edgecolor='black')
-        axes[1].errorbar(['L0'], l0_data, yerr=[metrics['l0_std']], 
-                        fmt='none', color='black', capsize=5)
-        axes[1].set_ylabel('Features per Token')
-        axes[1].set_title(f"L0: {metrics['l0_mean']:.2f} ± {metrics['l0_std']:.2f}")
-        axes[1].grid(True, alpha=0.3, axis='y')
-        
-        # 3. Dead features
-        active_features = np.sum(np.array(feature_freq) > 0.001)
-        dead_features = len(feature_freq) - active_features
-        
-        axes[2].pie(
-            [active_features, dead_features],
-            labels=['Active', 'Dead'],
-            autopct='%1.1f%%',
-            colors=['lightgreen', 'lightcoral'],
-            startangle=90
-        )
-        axes[2].set_title(f'Feature Usage\n(threshold=0.0)')
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved plot to {save_path}")
-        
-        plt.show()
-
-
-    def plot_reconstruction_quality(
-        self,
-        metrics: Dict[str, float],
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (12, 4)
-    ):
-        """
-        Visualize reconstruction quality metrics
-        """
-        fig, axes = plt.subplots(1, 3, figsize=figsize)
-        
-        # 1. MSE
-        axes[0].bar(['MSE'], [metrics['mse']], alpha=0.7, color='salmon', edgecolor='black')
-        axes[0].set_ylabel('Mean Squared Error')
-        axes[0].set_title(f"Reconstruction MSE\n{metrics['mse']:.6f}")
-        axes[0].grid(True, alpha=0.3, axis='y')
-        
-        # 2. Explained Variance
-        axes[1].barh(['Original\nVariance', 'Residual\nVariance'], 
-                    [1.0, 1.0 - metrics['explained_variance']],
-                    alpha=0.7, color=['skyblue', 'lightcoral'], edgecolor='black')
-        axes[1].set_xlabel('Proportion of Variance')
-        axes[1].set_title(f"Explained Variance: {metrics['explained_variance']*100:.2f}%")
-        axes[1].grid(True, alpha=0.3, axis='x')
-        
-        # 3. Cosine Similarity
-        angles = np.linspace(0, 2*np.pi, 100)
-        cos_sim = metrics['cosine_similarity']
-        
-        ax = plt.subplot(133, projection='polar')
-        ax.fill_between(angles, 0, cos_sim, alpha=0.3, color='green')
-        ax.plot(angles, [cos_sim]*len(angles), color='green', linewidth=2)
-        ax.set_ylim(0, 1)
-        ax.set_title(f"Cosine Similarity\n{cos_sim:.4f}", pad=20)
-        ax.set_rticks([0.25, 0.5, 0.75, 1.0])
-        ax.grid(True)
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved plot to {save_path}")
-        
-        plt.show()
-
-
-    def create_feature_dashboard(
-        self,
-        feature_idx: int,
-        save_path: Optional[str] = None,
-        figsize: Tuple[int, int] = (16, 10)
-    ):
-        """
-        Create a comprehensive dashboard for a single feature showing:
-        - Activation distribution
-        - Top activating examples
-        - Similar features
-        - Co-activating features
-        """
-        if self.activation_db is None:
-            raise ValueError("Must collect activations first")
-        
-        fig = plt.figure(figsize=figsize)
-        gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
-        
-        # 1. Feature stats
-        ax1 = fig.add_subplot(gs[0, :])
-        ax1.axis('off')
-        
-        freq = self.activation_db.feature_metadata['activation_counts'][feature_idx]
-        mean_act = self.activation_db.feature_metadata['mean_activation'][feature_idx]
-        pct = freq / self.activation_db.feature_metadata['n_tokens'] * 100
-        
-        stats_text = f"""
-        Feature {feature_idx} Overview
-        
-        Activation Frequency: {freq:,} tokens ({pct:.2f}%)
-        Mean Activation: {mean_act:.4f}
-        """
-        ax1.text(0.5, 0.5, stats_text, ha='center', va='center', 
-                fontsize=14, family='monospace',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-        
-        # 2. Activation distribution
-        ax2 = fig.add_subplot(gs[1, 0])
-        activations = self.activation_db.get_feature_activations(feature_idx)
-        if activations:
-            activation_values = [act_val for _, act_val in activations]
-            ax2.hist(activation_values, bins=30, alpha=0.7, edgecolor='black')
-            ax2.set_xlabel('Activation Value')
-            ax2.set_ylabel('Count')
-            ax2.set_title('Activation Distribution')
-            ax2.grid(True, alpha=0.3)
-        
-        # 3. Top examples
-        ax3 = fig.add_subplot(gs[1, 1])
-        ax3.axis('off')
-        
-        top_examples = []
-        for token_idx, act_val in activations[:5]:
-            context = self.activation_db.get_token_context(token_idx, self.model, context_size=5)
-            top_examples.append(f"'{context['token']}' ({act_val:.3f})")
-        
-        examples_text = "Top Activating Tokens:\n\n" + "\n".join(top_examples)
-        ax3.text(0.1, 0.9, examples_text, ha='left', va='top',
-                fontsize=10, family='monospace',
-                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
-        
-        # 4. Similar features (if available)
-        if self.feature_similarity is not None:
-            ax4 = fig.add_subplot(gs[2, 0])
-            similar = self.find_similar_features(feature_idx, top_k=10)
-            if similar:
-                feat_ids, similarities = zip(*similar)
-                ax4.barh(range(len(feat_ids)), similarities, alpha=0.7, edgecolor='black')
-                ax4.set_yticks(range(len(feat_ids)))
-                ax4.set_yticklabels([f"F{f}" for f in feat_ids])
-                ax4.set_xlabel('Similarity Score')
-                ax4.set_title('Most Similar Features')
-                ax4.grid(True, alpha=0.3, axis='x')
-        
-        # 5. Co-activating features (if available)
-        if hasattr(self, 'feature_cooccurrence') and self.feature_cooccurrence is not None:
-            ax5 = fig.add_subplot(gs[2, 1])
-            coactivating = self.find_coactivating_features(feature_idx, top_k=10)
-            if coactivating:
-                feat_ids, scores = zip(*coactivating)
-                ax5.barh(range(len(feat_ids)), scores, alpha=0.7, 
-                        edgecolor='black', color='orange')
-                ax5.set_yticks(range(len(feat_ids)))
-                ax5.set_yticklabels([f"F{f}" for f in feat_ids])
-                ax5.set_xlabel('Co-occurrence Score')
-                ax5.set_title('Co-activating Features')
-                ax5.grid(True, alpha=0.3, axis='x')
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved dashboard to {save_path}")
-        
-        plt.show()

@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import json
 import numpy as np
@@ -8,7 +7,6 @@ import torch
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for remote servers
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from sae_core.full_analysis import SAEAnalyzer
 from sae_core.pretrained import load_pretrained
@@ -44,8 +42,7 @@ def create_analysis_directories(base_path: str = 'analysis'):
         'activation_db': base / 'activation_database',
         'matrices': base / 'matrices',
         'plots': base / 'plots',
-        'results': base / 'results',
-        'dashboards': base / 'plots' / 'dashboards'
+        'results': base / 'results'
     }
     
     for dir_path in dirs.values():
@@ -57,7 +54,7 @@ def create_analysis_directories(base_path: str = 'analysis'):
 def run_comprehensive_analysis(
     model_name: str = "qwen3-0.6b",
     sae_path: str = None,
-    layer: int = 12,
+    layer: int = 9,
     hook_name: str = 'hook_resid_post',
     data_path: str = None,
     batch_size: int = 16,
@@ -104,7 +101,7 @@ def run_comprehensive_analysis(
     # ========================================
     # 1. LOAD MODEL, SAE, AND DATA
     # ========================================
-    print("\n[1/9] Loading model, SAE, and data...")
+    print("\n[1/7] Loading model, SAE, and data...")
     
     model = HookedTransformer.from_pretrained(
         model_name,
@@ -162,7 +159,7 @@ def run_comprehensive_analysis(
     # ========================================
     # 2. INITIALIZE ANALYZER
     # ========================================
-    print("\n[2/9] Initializing SAE Analyzer...")
+    print("\n[2/7] Initializing SAE Analyzer...")
     
     analyzer = SAEAnalyzer(
         model=model,
@@ -176,7 +173,7 @@ def run_comprehensive_analysis(
     # ========================================
     # 3. COLLECT ACTIVATIONS
     # ========================================
-    print("\n[3/9] Collecting activations across corpus...")
+    print("\n[3/7] Collecting activations across corpus...")
     print("This may take a while depending on corpus size...")
     
     activation_db_path = dirs['activation_db'] / f'activation_db_{timestamp}.pkl'
@@ -189,7 +186,7 @@ def run_comprehensive_analysis(
     # ========================================
     # 4. COMPUTE FEATURE SIMILARITY
     # ========================================
-    print("\n[4/9] Computing feature similarity matrix...")
+    print("\n[4/7] Computing feature similarity matrix...")
     
     similarity_path = dirs['matrices'] / f'feature_similarity_{timestamp}.npy'
     analyzer.compute_feature_similarity(
@@ -201,7 +198,7 @@ def run_comprehensive_analysis(
     # ========================================
     # 5. COMPUTE FEATURE CO-OCCURRENCE
     # ========================================
-    print("\n[5/9] Computing feature co-occurrence matrix...")
+    print("\n[5/7] Computing feature co-occurrence matrix...")
     print("This may take a while for large feature sets...")
     
     cooccurrence_path = dirs['matrices'] / f'feature_cooccurrence_{timestamp}.npy'
@@ -215,91 +212,27 @@ def run_comprehensive_analysis(
     # ========================================
     # 6. RUN FULL METRICS ANALYSIS
     # ========================================
-    print("\n[6/9] Running full metrics analysis...")
+    print("\n[6/7] Running full metrics analysis...")
     
+    feature_summary_path = dirs['results'] / f'feature_summaries_{timestamp}.jsonl'
     results_path = dirs['results'] / f'analysis_results_{timestamp}.json'
     results = analyzer.run_full_analysis(
         batch_size=batch_size,
-        save_path=str(results_path)
+        save_path=str(results_path),
+        feature_summary_path=str(feature_summary_path),
+        feature_summary_top_k=25,
+        use_training_dead_metric=True,
     )
     print(f"✓ Saved results to: {results_path}")
+    print(f"✓ Saved feature summaries to: {feature_summary_path}")
     
     # ========================================
-    # 7. CREATE OVERVIEW VISUALIZATIONS
+    # 7. GENERATE SUMMARY REPORT
     # ========================================
-    print("\n[7/9] Creating overview visualizations...")
+    print("\n[7/7] Generating summary report...")
     
-    # Sparsity distribution
-    analyzer.plot_sparsity_distribution(
-        results['sparsity'],
-        results['feature_freq'],
-        save_path=str(dirs['plots'] / 'sparsity_overview.png')
-    )
-    plt.close('all')  # Close all figures
-    print("✓ Created sparsity distribution plot")
-    
-    # Reconstruction quality
-    analyzer.plot_reconstruction_quality(
-        results['reconstruction'],
-        save_path=str(dirs['plots'] / 'reconstruction_quality.png')
-    )
-    plt.close('all')
-    print("✓ Created reconstruction quality plot")
-    
-    # Feature similarity heatmap
-    analyzer.plot_feature_similarity_heatmap(
-        top_k=50,
-        save_path=str(dirs['plots'] / 'similarity_heatmap.png')
-    )
-    plt.close('all')
-    print("✓ Created feature similarity heatmap")
-    
-    # Feature co-occurrence heatmap
-    analyzer.plot_cooccurrence_heatmap(
-        top_k=50,
-        save_path=str(dirs['plots'] / 'cooccurrence_heatmap.png')
-    )
-    plt.close('all')
-    print("✓ Created feature co-occurrence heatmap")
-    
-    # ========================================
-    # 8. ANALYZE TOP FEATURES
-    # ========================================
-    print("\n[8/9] Analyzing top features individually...")
-    
-    # Get top 10 most active features
     feature_counts = np.array(results['feature_freq'])
     top_feature_indices = np.argsort(feature_counts)[-10:][::-1]
-    
-    feature_analysis_dir = dirs['dashboards']
-    
-    for rank, feature_idx in enumerate(top_feature_indices, 1):
-        print(f"  Analyzing feature {feature_idx} (rank {rank})...")
-        
-        try:
-            # Create comprehensive dashboard
-            analyzer.create_feature_dashboard(
-                feature_idx=feature_idx,
-                save_path=str(feature_analysis_dir / f'feature_{feature_idx}_dashboard.png')
-            )
-            plt.close('all')
-            
-            # Individual activation distribution
-            analyzer.plot_activation_distribution(
-                feature_idx=feature_idx,
-                save_path=str(feature_analysis_dir / f'feature_{feature_idx}_distribution.png')
-            )
-            plt.close('all')
-        except Exception as e:
-            print(f"  WARNING: Failed to analyze feature {feature_idx}: {e}")
-            continue
-    
-    print(f"✓ Created {len(top_feature_indices)} feature dashboards")
-    
-    # ========================================
-    # 9. GENERATE SUMMARY REPORT
-    # ========================================
-    print("\n[9/9] Generating summary report...")
     
     summary = {
         'timestamp': timestamp,
@@ -336,7 +269,8 @@ def run_comprehensive_analysis(
             'activation_db': str(activation_db_path.relative_to(dirs['base'])),
             'similarity_matrix': str(similarity_path.relative_to(dirs['base'])),
             'cooccurrence_matrix': str(cooccurrence_path.relative_to(dirs['base'])),
-            'results': str(results_path.relative_to(dirs['base']))
+            'results': str(results_path.relative_to(dirs['base'])),
+            'feature_summaries': str(feature_summary_path.relative_to(dirs['base']))
         }
     }
     
@@ -381,7 +315,7 @@ Generated: {timestamp}
 ## Top 10 Most Active Features
 {', '.join(map(str, top_feature_indices.tolist()))}
 
-See dashboards/ folder for detailed analysis of each feature.
+See results/{feature_summary_path.name} for per-feature activation contexts.
 """
     
     readme_path = dirs['base'] / f'README_{timestamp}.md'
@@ -416,14 +350,12 @@ if __name__ == "__main__":
     
     # Configuration
     MODEL_NAME = "qwen3-0.6b"
-    SAE_PATH = 'qwen3_06B.blocks.9.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4'
-    # SAE_PATH = 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity60.mse0.001.kl0.01.physics10.exp8'
+    SAE_PATH = 'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4'
     LAYER = 9
     HOOK_NAME = 'hook_resid_post'
-    DATA_PATH = 'sae_core/data/processed_data/processed_physics_all.json'
-    # DATA_PATH = 'sae_core/data/processed_data/processed_physics_10_ch.json'
+    DATA_PATH = 'sae_core/data/processed_data/processed_textbooks_all.json'
     BATCH_SIZE = 16
-    ANALYSIS_DIR = 'analysis_reborn_final'
+    ANALYSIS_DIR = f'{SAE_PATH}.analysis'
     
     try:
         # Run analysis
