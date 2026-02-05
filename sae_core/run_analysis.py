@@ -98,9 +98,9 @@ def run_comprehensive_analysis(
     with open(dirs['base'] / f'config_{timestamp}.json', 'w') as f:
         json.dump(config, f, indent=2)
     
-    # ========================================
+
     # 1. LOAD MODEL, SAE, AND DATA
-    # ========================================
+
     print("\n[1/7] Loading model, SAE, and data...")
     
     model = HookedTransformer.from_pretrained(
@@ -156,9 +156,9 @@ def run_comprehensive_analysis(
     texts = load_processed_data(data_path)
     print(f"✓ Loaded {len(texts)} texts from: {data_path}")
     
-    # ========================================
+
     # 2. INITIALIZE ANALYZER
-    # ========================================
+
     print("\n[2/7] Initializing SAE Analyzer...")
     
     analyzer = SAEAnalyzer(
@@ -170,9 +170,9 @@ def run_comprehensive_analysis(
     )
     print("✓ Analyzer initialized")
     
-    # ========================================
+
     # 3. COLLECT ACTIVATIONS
-    # ========================================
+
     print("\n[3/7] Collecting activations across corpus...")
     print("This may take a while depending on corpus size...")
     
@@ -183,9 +183,9 @@ def run_comprehensive_analysis(
     )
     print(f"✓ Saved activation database to: {activation_db_path}")
     
-    # ========================================
+
     # 4. COMPUTE FEATURE SIMILARITY
-    # ========================================
+
     print("\n[4/7] Computing feature similarity matrix...")
     
     similarity_path = dirs['matrices'] / f'feature_similarity_{timestamp}.npy'
@@ -195,9 +195,9 @@ def run_comprehensive_analysis(
     )
     print(f"✓ Saved similarity matrix to: {similarity_path}")
     
-    # ========================================
+
     # 5. COMPUTE FEATURE CO-OCCURRENCE
-    # ========================================
+
     print("\n[5/7] Computing feature co-occurrence matrix...")
     print("This may take a while for large feature sets...")
     
@@ -209,9 +209,9 @@ def run_comprehensive_analysis(
     )
     print(f"✓ Saved co-occurrence matrix to: {cooccurrence_path}")
     
-    # ========================================
+
     # 6. RUN FULL METRICS ANALYSIS
-    # ========================================
+
     print("\n[6/7] Running full metrics analysis...")
     
     feature_summary_path = dirs['results'] / f'feature_summaries_{timestamp}.jsonl'
@@ -226,9 +226,9 @@ def run_comprehensive_analysis(
     print(f"✓ Saved results to: {results_path}")
     print(f"✓ Saved feature summaries to: {feature_summary_path}")
     
-    # ========================================
+
     # 7. GENERATE SUMMARY REPORT
-    # ========================================
+
     print("\n[7/7] Generating summary report...")
     
     feature_counts = np.array(results['feature_freq'])
@@ -325,9 +325,9 @@ See results/{feature_summary_path.name} for per-feature activation contexts.
     print(f"✓ Saved summary to: {summary_path}")
     print(f"✓ Saved README to: {readme_path}")
     
-    # ========================================
+    
     # COMPLETION
-    # ========================================
+    
     print(f"\n{'='*80}")
     print(f"Analysis Complete!")
     print(f"{'='*80}")
@@ -343,9 +343,7 @@ See results/{feature_summary_path.name} for per-feature activation contexts.
     return analyzer, results, summary
 
 
-# ========================================
 # MAIN EXECUTION
-# ========================================
 if __name__ == "__main__":
     
     # Configuration
