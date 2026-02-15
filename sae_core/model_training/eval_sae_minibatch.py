@@ -6,6 +6,7 @@ from typing import Dict, List
 from transformer_lens import HookedTransformer
 
 from sae_core.sae_base import SAE
+from sae_core.pretrained import load_pretrained
 from sae_core.sae_train import WindowedTextDataset, pad_collate
 from sae_core.training import compute_kl_divergence
 from sae_core.data_processing.textbook_process import load_processed_data
@@ -93,7 +94,7 @@ def evaluate_sae_on_batch(
 
 
 def load_sae(path: Path, device: str) -> SAE:
-    sae, _ = SAE.load(str(path), device=device, load_history=True)
+    sae, _ = load_pretrained(str(path), device=device, load_history=True)
     return sae
 
 

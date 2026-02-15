@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 from huggingface_hub import snapshot_download
 
-from sae_core.sae_base import SAE
+from sae_core.sae_base import SAE, BatchTopKSAE
 
 HF_REPO_ID = "Sardean/saelens-models"
 
@@ -37,8 +38,24 @@ def list_pretrained():
     return list(PRETRAINED_SAES.keys())
 
 
-def _load_from_path(path: Path, device: str, load_history: bool) -> Union[SAE, Tuple[SAE, Dict[str, Any]]]:
-    return SAE.load(path, device=device, load_history=load_history)
+def _resolve_sae_type(path: Path) -> Type[SAE]:
+    """Infer which SAE class to instantiate from the saved config."""
+    with open(path / "config.json", "r") as f:
+        cfg = json.load(f)
+
+    # BatchTopK checkpoints always store top_k.
+    if cfg.get("top_k") is not None:
+        return BatchTopKSAE
+    return SAE
+
+
+def _load_from_path(
+    path: Path,
+    device: str,
+    load_history: bool,
+) -> Union[SAE, Tuple[SAE, Dict[str, Any]]]:
+    sae_type = _resolve_sae_type(path)
+    return sae_type.load(path, device=device, load_history=load_history)
 
 
 def load_pretrained(

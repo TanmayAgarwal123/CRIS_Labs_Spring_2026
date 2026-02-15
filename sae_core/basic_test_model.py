@@ -1,10 +1,10 @@
-from sae_core.sae_base import SAE
 import torch
+from sae_core.pretrained import load_pretrained
 
 model_path = "/home/ubuntu/SAELens/sae_core/pretrained_models/qwen3_06B.blocks.14.hook_mlp_out.sae"
 
 # Load the model with history
-loaded_sae, history = SAE.load(model_path, device="cuda", load_history=True)
+loaded_sae, history = load_pretrained(model_path, device="cuda", load_history=True)
 
 print(f"✓ Loaded SAE with {loaded_sae.cfg.d_sae} features")
 print(f"✓ Input dimension: {loaded_sae.cfg.d_in}")

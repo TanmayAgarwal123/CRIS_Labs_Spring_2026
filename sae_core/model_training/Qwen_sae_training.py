@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sae_core.sae_base import SAE, BatchTopKSAE
 from sae_core.sae_config import SAEConfig
+from sae_core.pretrained import load_pretrained
 from sae_core.sae_train import SAETrainer
 from sae_core.train_config import TrainingConfig
 
@@ -141,7 +142,10 @@ def main():
     best_model_path = checkpoint_dir / "best_model.pt"
     if best_model_path.exists():
         print(f"Loading best checkpoint from {best_model_path}")
-        QWEN3_SAE_Trainer.sae = QWEN3_SAE_Trainer.sae.__class__.load(best_model_path, device=QWEN3_SAE_Config.device)
+        QWEN3_SAE_Trainer.sae = load_pretrained(
+            str(best_model_path),
+            device=QWEN3_SAE_Config.device,
+        )
     else:
         print("Best checkpoint not found; exporting last-epoch weights.")
 
