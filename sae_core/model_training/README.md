@@ -1,16 +1,20 @@
-# SAE Training + Tracking Guide
+# SAE Training + Analysis Guide
 
-This guide is the practical, end-to-end workflow for training Sparse Autoencoders (SAEs) in this repo and tracking runs with Weights & Biases (W&B).
+This guide is the practical, end-to-end workflow for training Sparse Autoencoders (SAEs) in this repo, then analyzing the trained SAEs on the corpus.
 
-Use this to understand:
+Use this for:
 
 - preparing the training dataset
 - running a single SAE training job
 - running the Qwen3 batch pipeline
+- finding the exported SAE artifacts you need for analysis
+- running quick analysis (sparsity + dead features + ablation)
+- running comprehensive analysis (including the corpus-wide token activation pass / activation DB)
+- understanding analysis outputs (activation DB, matrices, summaries, plots)
 - monitoring progress in W&B (without uploading every checkpoint)
 - exporting final models and uploading them to Hugging Face
 
-Note: the top-level `SAELens/README.md` is marked out of date. For training, use this file.
+Note: the top-level `SAELens/README.md` is marked out of date. For SAE training + analysis in this repo, use this file.
 
 ## What lives in this folder
 
@@ -18,6 +22,12 @@ Note: the top-level `SAELens/README.md` is marked out of date. For training, use
 - `Qwen3_all_sae_training.py`: batch pipeline that trains one BatchTopK SAE per selected Qwen3 model.
 - `eval_sae_minibatch.py`: ad hoc minibatch evaluation script.
 - `wandb_utils.py`: shared W&B helpers used by the training scripts.
+
+Analysis entrypoints live one directory up in `sae_core/`:
+
+- `sae_core/analysis_short_rerun.py`: quick script for sparsity/dead-feature/ablation checks.
+- `sae_core/run_analysis.py`: comprehensive analysis pipeline (activation DB + matrices + metrics + report).
+- `sae_core/full_analysis.py`: `SAEAnalyzer` implementation used by both scripts.
 
 ## How the training pipeline works (high level)
 
@@ -34,7 +44,7 @@ Note: the top-level `SAELens/README.md` is marked out of date. For training, use
 By design, W&B tracking logs metrics and (optionally) the final exported SAE artifact only.
 Training now samples random crops from cached tokenized texts to reduce boundary-aligned "position-0" features.
 
-## Repo map (training-relevant files)
+## Repo map (training + analysis-relevant files)
 
 - `sae_core/model_training/single_sae_training.py`: CLI args, model loading, run orchestration.
 - `sae_core/model_training/Qwen3_all_sae_training.py`: multi-model Qwen3 orchestration.
@@ -42,6 +52,9 @@ Training now samples random crops from cached tokenized texts to reduce boundary
 - `sae_core/training.py`: core optimization loop, metrics, validation, checkpointing, W&B epoch logging.
 - `sae_core/sae_base.py`: SAE modules and save/load format (`weights.pt`, `config.json`, `history.json`).
 - `sae_core/data_processing/textbook_process.py`: builds the default processed training dataset.
+- `sae_core/full_analysis.py`: activation collection, sparsity/reconstruction metrics, ablation, feature summaries, similarity/co-occurrence.
+- `sae_core/analysis_short_rerun.py`: quick post-training checks (does not build the activation DB).
+- `sae_core/run_analysis.py`: comprehensive analysis runner and output packaging.
 
 ## 1) Choose and verify your Python environment
 
@@ -174,7 +187,7 @@ Run:
 python sae_core/data_processing/textbook_process.py
 ```
 
-### Use your own dataset instead
+### Use a different dataset instead
 
 If you already have a JSON list of strings, point the training scripts at it:
 
@@ -205,10 +218,6 @@ python sae_core/model_training/single_sae_training.py \
   --wandb-project sae-training \
   --run-name smoke_test_sae
 ```
-
-Apple Silicon tip: use `--device mps` if autodetection does not pick it.
-
-CUDA-only memory tip: `--load-in-4bit` can reduce memory pressure, but depends on your environment/tooling.
 
 ## 6) Train a single SAE (recommended default workflow)
 
@@ -581,14 +590,13 @@ For `--sae-type batch_topk`, `--topk` must be greater than 0.
 - Validation uses `--val-fraction` (default `0.1`).
 - Validation metrics are only logged if a non-empty validation split exists.
 
-## 12) Suggested first run sequence (copy/paste)
+## 12) Suggested first run sequence
 
 From `SAELens/`:
 
 ```bash
 # 1) Activate your env (choose one)
 source .venv/bin/activate
-# or: conda activate sae_lab_project
 
 # 2) Install deps
 python -m pip install -r requirements.txt
@@ -621,9 +629,235 @@ python sae_core/model_training/single_sae_training.py \
   --upload-to-hf
 ```
 
-## 13) What to read next (if you want deeper understanding)
+## 13) What to read next
 
 - `sae_core/training.py`: exact loss terms, metrics, validation, checkpointing.
 - `sae_core/sae_base.py`: SAE and BatchTopKSAE implementation details.
 - `sae_core/train_config.py`: training config fields and validation.
 - `sae_core/model_training/single_sae_training.py`: all CLI knobs and default values.
+- `sae_core/full_analysis.py`: analysis methods and corpus activation database implementation.
+- `sae_core/run_analysis.py`: comprehensive analysis outputs and report generation.
+- `sae_core/analysis_short_rerun.py`: quick sanity-check analysis script.
+
+## 14) Analyze a trained SAE (what you need first)
+
+Before you run analysis, you need these inputs from a completed training run:
+
+- `model_name`: the base transformer used during training (example: `Qwen/Qwen3-0.6B`)
+- `sae_path`: path to the exported SAE directory (the folder containing `weights.pt`, `config.json`, `history.json`)
+- `layer`: hook layer index used for training
+- `hook_name`: hook name used for training (typically `hook_resid_post`)
+- `data_path`: corpus JSON (`list[str]`) you want to analyze against
+
+Important: `sae_path` is the exported SAE directory, not a single file.
+
+### How to recover analysis settings from a saved SAE
+
+The exported SAE contains `config.json`, which stores the hook metadata used in training.
+
+From `SAELens/`:
+
+```bash
+python -m json.tool sae_core/pretrained_models/<run_name>/config.json
+```
+
+Look for fields such as:
+
+- `hook_layer`
+- `hook_name`
+- `hook_spec`
+
+Use those exact values for analysis.
+
+## 15) Quick analysis (sparsity + dead features + ablation)
+
+Use `sae_core/analysis_short_rerun.py` for a lightweight post-training check.
+
+It currently runs:
+
+- `compute_sparsity_metrics(...)`
+- `find_dead_features(...)`
+- `ablation_study(...)`
+
+It does **not** build the corpus activation database (`collect_all_activations`), so it is much lighter than the full pipeline.
+
+### Step 1: Edit the script constants
+
+Open `sae_core/analysis_short_rerun.py` and update:
+
+- `MODEL_NAME`
+- `SAE_PATH`
+- the `layer` argument passed into `SAEAnalyzer(...)`
+- dataset path in `load_processed_data(...)` (if not using the default)
+
+### Step 2: Run it
+
+From `SAELens/`:
+
+```bash
+python sae_core/analysis_short_rerun.py
+```
+
+This prints metrics to the console. It is a good sanity check before running the comprehensive pipeline.
+
+## 16) Comprehensive analysis (includes the corpus activation pass)
+
+Use `sae_core/run_analysis.py` when you want the full end-to-end analysis workflow, including:
+
+1. loading the base model + SAE + dataset
+2. building a corpus-wide activation database (`collect_all_activations`)
+3. computing feature similarity matrix
+4. computing feature co-occurrence matrix
+5. running metrics (sparsity, dead features, reconstruction, ablation)
+6. generating summaries, plots, and a report
+
+This is the script that does the "token activation on the corpus after training" step.
+
+### Option A (simple): Edit constants in `run_analysis.py` and run
+
+Open `sae_core/run_analysis.py` and update the values in the `__main__` block:
+
+- `MODEL_NAME`
+- `SAE_PATH`
+- `LAYER`
+- `HOOK_NAME`
+- `DATA_PATH`
+- `BATCH_SIZE`
+- `ANALYSIS_DIR`
+
+Then run:
+
+```bash
+python sae_core/run_analysis.py
+```
+
+### Option B: Call the function directly
+
+This avoids editing the script each time and makes your settings explicit in your shell history.
+
+From `SAELens/`:
+
+```bash
+python - <<'PY'
+from sae_core.run_analysis import run_comprehensive_analysis
+
+run_comprehensive_analysis(
+    model_name="Qwen/Qwen3-0.6B",
+    sae_path="sae_core/pretrained_models/<run_name>",
+    layer=13,
+    hook_name="hook_resid_post",
+    data_path="sae_core/data/processed_data/processed_textbooks_all.json",
+    batch_size=8,
+    analysis_dir="analysis/<run_name>"
+)
+PY
+```
+
+Replace `<run_name>` and `layer` with your trained SAE’s values.
+
+## 17) Analysis outputs (what gets created)
+
+The comprehensive analysis script creates an organized output directory (your `analysis_dir`) with subfolders:
+
+- `activation_database/`
+- `matrices/`
+- `plots/`
+- `results/`
+
+Typical outputs include:
+
+- activation DB pickle (`activation_db_*.pkl`)
+- feature similarity matrix (`feature_similarity_*.npy`)
+- feature co-occurrence matrix (`feature_cooccurrence_*.npy`)
+- analysis metrics JSON (`analysis_results_*.json`)
+- feature summaries JSONL (`feature_summaries_*.jsonl`)
+- training history plot (`plots/training_history.png`) when history is available
+- run summary JSON + human-readable README report
+
+## 18) Analysis compute, memory, and disk notes (important)
+
+### The expensive part: corpus activation collection
+
+`collect_all_activations(...)` processes the entire corpus through the base model and stores sparse SAE feature activations for every token.
+
+This step is usually the biggest analysis cost on GPU and can also be heavy on CPU/RAM due to:
+
+- per-token metadata storage
+- sparse matrix construction
+- reverse feature-to-token index building
+
+If you only want a quick sanity check, use `analysis_short_rerun.py` first.
+
+### Large SAEs can make matrix analysis expensive
+
+The similarity and co-occurrence steps build `d_sae x d_sae` matrices (saved as float32 `.npy` files). For large `d_sae`, these can become large and slow.
+
+If you are resource-constrained:
+
+- reduce analysis `batch_size`
+- run quick analysis first
+- run only the specific `SAEAnalyzer` methods you need instead of the full pipeline
+
+## 19) End-to-end train -> analyze (You probably won't ever actually do this all at once - at least I hope)
+
+From `SAELens/`:
+
+```bash
+# 1) Train a single SAE (example)
+python sae_core/model_training/single_sae_training.py \
+  --model-name Qwen/Qwen3-0.6B \
+  --sae-type batch_topk \
+  --topk 128 \
+  --sae-expansion 4 \
+  --hook-name hook_resid_post \
+  --wandb \
+  --wandb-project sae-training
+
+# 2) Inspect the exported SAE config to recover hook settings
+python -m json.tool sae_core/pretrained_models/<run_name>/config.json
+
+# 3) Quick sanity-check analysis (edit constants in the script first)
+python sae_core/analysis_short_rerun.py
+
+# 4) Comprehensive analysis (includes corpus-wide token activations)
+python - <<'PY'
+from sae_core.run_analysis import run_comprehensive_analysis
+
+run_comprehensive_analysis(
+    model_name="Qwen/Qwen3-0.6B",
+    sae_path="sae_core/pretrained_models/<run_name>",
+    layer=13,  # replace with your trained hook layer
+    hook_name="hook_resid_post",
+    data_path="sae_core/data/processed_data/processed_textbooks_all.json",
+    batch_size=8,
+    analysis_dir="analysis/<run_name>"
+)
+PY
+```
+
+## 20) Common analysis failure modes
+
+### `sae_path` points to the wrong thing
+
+`SAEAnalyzer` expects the exported SAE directory (with `weights.pt`, `config.json`, `history.json`), not a raw checkpoint path typo or missing directory.
+
+### Layer / hook mismatch between model and SAE
+
+If the SAE was trained on `blocks.<layer>.<hook_name>`, analysis must use the same base model + layer + hook.
+
+Check `config.json` in the exported SAE directory and copy the values exactly.
+
+### OOM during analysis
+
+Try:
+
+- lowering analysis `batch_size`
+- running `analysis_short_rerun.py` first
+- skipping the full `run_analysis.py` pipeline and calling only selected methods from `SAEAnalyzer`
+
+### Analysis is slow even with a small batch size
+
+That can be normal for comprehensive runs:
+
+- activation DB creation includes Python-side sparse/index work
+- co-occurrence and feature-summary generation can be CPU-heavy
