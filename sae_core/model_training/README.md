@@ -15,6 +15,7 @@ Use this for:
 - exporting final models and uploading them to Hugging Face
 
 Note: the top-level `SAELens/README.md` is marked out of date. For SAE training + analysis in this repo, use this file.
+If you want an analysis-only guide (including `interp_analysis.ipynb`), see `sae_core/ANALYSIS_README.md`.
 
 ## What lives in this folder
 
