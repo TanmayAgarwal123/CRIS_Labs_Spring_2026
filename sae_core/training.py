@@ -25,6 +25,7 @@ def train_sae(
     checkpoint_freq: int = 5,
     save_best: bool = True,
     val_loader: Optional[DataLoader] = None,
+    wandb_run: Optional[Any] = None,
 ) -> Dict[str, List[float]]:
 
     model.eval()
@@ -79,6 +80,7 @@ def train_sae(
     if val_loader is not None:
         for key in metric_keys:
             history[f"val_{key}"] = []
+    wandb_logging_failed = False
 
     pad_token_id = model.tokenizer.pad_token_id
     if pad_token_id is None:
@@ -294,6 +296,7 @@ def train_sae(
         print(f"    dead features: {dead_features}/{sae.cfg.d_sae} ({dead_feature_pct:.2f}%)")
 
         stop_early = False
+        val_batches = 0
         if val_loader is not None:
             val_metrics, val_batches = evaluate(val_loader)
             if val_batches == 0:
@@ -327,6 +330,25 @@ def train_sae(
                 print(f"          └─ kl_contribution: {history['val_kl_contribution'][-1]:.4f}")
             print(f"        sparsity: {history['val_sparsity'][-1]:.4f}")
             print(f"        aux_loss: {history['val_aux_loss'][-1]:.4f}")
+
+        if wandb_run is not None and not wandb_logging_failed:
+            wandb_payload: Dict[str, Any] = {
+                "epoch": epoch + 1,
+                "train/num_batches": num_batches,
+                "train/dead_features": dead_features,
+                "train/dead_feature_percentage": dead_feature_pct,
+            }
+            for key in metric_keys:
+                wandb_payload[f"train/{key}"] = history[key][-1]
+            if val_loader is not None and val_batches > 0:
+                wandb_payload["val/num_batches"] = val_batches
+                for key in metric_keys:
+                    wandb_payload[f"val/{key}"] = history[f"val_{key}"][-1]
+            try:
+                wandb_run.log(wandb_payload)
+            except Exception as exc:
+                print(f"W&B logging warning (disabling further W&B logs): {exc}")
+                wandb_logging_failed = True
 
         if checkpoint_dir is not None:
             if (epoch + 1) % checkpoint_freq == 0:
