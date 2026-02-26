@@ -1,9 +1,0 @@
-{
-  "timestamp": "20251111_055022",
-  "model_name": "qwen3-0.6b",
-  "sae_path": "qwen3_06B.blocks.12.hook_resid_post.sae.sparsity200.mse0.001.kl0.01.physics.exp4",
-  "layer": 12,
-  "hook_name": "hook_resid_post",
-  "data_path": "sae_core/data/processed_data/processed_physics_all.json",
-  "batch_size": 16
-}
