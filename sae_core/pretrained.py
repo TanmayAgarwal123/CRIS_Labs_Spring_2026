@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
@@ -6,7 +7,10 @@ from huggingface_hub import snapshot_download
 
 from sae_core.sae_base import SAE, BatchTopKSAE
 
-HF_REPO_ID = "Sardean/saelens-models"
+HF_REPO_ID = os.getenv(
+    "SAE_HF_REPO_ID",
+    "CRISMechInterp/Qwen3_SAEs"
+)
 
 PRETRAINED_SAES = {
     # Deprecated SAEs:

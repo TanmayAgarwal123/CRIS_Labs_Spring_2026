@@ -1,0 +1,58 @@
+FILTERED FEATURE ANALYSIS
+================================================================================
+
+Max special token ratio: 0.3
+Features passing filter: 7768
+
+Top Features:
+--------------------------------------------------------------------------------
+  1. Feature 6326 | Score: 6.38e+07 | Count:  14374 | Special: 0.3%
+  2. Feature 7084 | Score: 5.15e+06 | Count:  10892 | Special: 0.0%
+  3. Feature 7711 | Score: 5.02e+06 | Count:  24484 | Special: 0.1%
+  4. Feature  376 | Score: 4.38e+06 | Count:   2394 | Special: 0.0%
+  5. Feature 1553 | Score: 4.29e+06 | Count:   8193 | Special: 0.0%
+  6. Feature 5296 | Score: 3.78e+06 | Count:  11580 | Special: 0.0%
+  7. Feature 4957 | Score: 3.74e+06 | Count:  31920 | Special: 0.0%
+  8. Feature 8021 | Score: 3.26e+06 | Count:  14063 | Special: 0.0%
+  9. Feature 6318 | Score: 2.61e+06 | Count:  30166 | Special: 0.1%
+ 10. Feature 3743 | Score: 2.16e+06 | Count:  23844 | Special: 0.0%
+ 11. Feature 5939 | Score: 1.81e+06 | Count:  10329 | Special: 0.0%
+ 12. Feature 4759 | Score: 1.77e+06 | Count:   6088 | Special: 0.0%
+ 13. Feature 3476 | Score: 1.71e+06 | Count:   3665 | Special: 0.0%
+ 14. Feature 3634 | Score: 1.69e+06 | Count:  11875 | Special: 0.1%
+ 15. Feature 5723 | Score: 1.44e+06 | Count:   8593 | Special: 0.0%
+ 16. Feature  805 | Score: 1.36e+06 | Count:  21323 | Special: 0.0%
+ 17. Feature  690 | Score: 1.30e+06 | Count:  19605 | Special: 0.0%
+ 18. Feature 7428 | Score: 1.16e+06 | Count:   6232 | Special: 1.8%
+ 19. Feature 2037 | Score: 1.11e+06 | Count:  24438 | Special: 0.3%
+ 20. Feature 1731 | Score: 1.01e+06 | Count:   3962 | Special: 0.0%
+ 21. Feature 1251 | Score: 9.43e+05 | Count:  12291 | Special: 0.0%
+ 22. Feature 8189 | Score: 9.31e+05 | Count:  10667 | Special: 0.0%
+ 23. Feature 1358 | Score: 9.14e+05 | Count:  17248 | Special: 0.0%
+ 24. Feature 4150 | Score: 9.05e+05 | Count:   5486 | Special: 0.0%
+ 25. Feature 8174 | Score: 8.41e+05 | Count:  22855 | Special: 0.2%
+ 26. Feature  739 | Score: 8.29e+05 | Count:   6283 | Special: 0.0%
+ 27. Feature 1028 | Score: 8.13e+05 | Count:   9407 | Special: 0.3%
+ 28. Feature 6741 | Score: 7.67e+05 | Count:   2882 | Special: 0.0%
+ 29. Feature 6493 | Score: 7.47e+05 | Count:  52813 | Special: 0.1%
+ 30. Feature 1638 | Score: 7.32e+05 | Count:   3971 | Special: 0.0%
+ 31. Feature 6636 | Score: 7.32e+05 | Count:   4279 | Special: 0.0%
+ 32. Feature 5586 | Score: 7.14e+05 | Count:   5983 | Special: 0.1%
+ 33. Feature 2425 | Score: 7.12e+05 | Count:   7579 | Special: 0.0%
+ 34. Feature 2854 | Score: 6.92e+05 | Count:  29348 | Special: 0.0%
+ 35. Feature 2196 | Score: 6.85e+05 | Count:  23020 | Special: 0.0%
+ 36. Feature 2556 | Score: 6.59e+05 | Count:   1130 | Special: 0.0%
+ 37. Feature 2386 | Score: 6.57e+05 | Count:   3990 | Special: 0.0%
+ 38. Feature 1825 | Score: 6.55e+05 | Count:   7182 | Special: 0.0%
+ 39. Feature 3683 | Score: 6.34e+05 | Count:  54988 | Special: 0.2%
+ 40. Feature 2900 | Score: 6.08e+05 | Count:   9712 | Special: 0.1%
+ 41. Feature  819 | Score: 5.64e+05 | Count:  14499 | Special: 0.5%
+ 42. Feature 2655 | Score: 5.60e+05 | Count:   7682 | Special: 0.0%
+ 43. Feature 5168 | Score: 5.60e+05 | Count:  54974 | Special: 0.0%
+ 44. Feature 6809 | Score: 5.57e+05 | Count:  33528 | Special: 0.0%
+ 45. Feature 3660 | Score: 5.57e+05 | Count:  16258 | Special: 0.0%
+ 46. Feature  881 | Score: 5.20e+05 | Count:   1419 | Special: 0.0%
+ 47. Feature 7413 | Score: 5.18e+05 | Count:  34441 | Special: 0.0%
+ 48. Feature 3151 | Score: 4.82e+05 | Count:  10772 | Special: 0.1%
+ 49. Feature  651 | Score: 4.69e+05 | Count:  36924 | Special: 0.0%
+ 50. Feature 6047 | Score: 4.59e+05 | Count:   5689 | Special: 0.0%

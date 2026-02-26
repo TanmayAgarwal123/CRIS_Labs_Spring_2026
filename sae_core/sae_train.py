@@ -1,7 +1,8 @@
+import bisect
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformer_lens import HookedTransformer
-from typing import List, Optional
+from typing import Any, List, Optional
 from pathlib import Path
 
 from sae_core.sae_base import SAE
@@ -10,8 +11,8 @@ from sae_core.training import train_sae
 from sae_core.train_config import TrainingConfig
 
 
-class WindowedTextDataset(Dataset):
-    """Streams token windows from raw texts instead of pre-tokenizing everything."""
+class _TokenizedTextDataset(Dataset):
+    """Shared tokenizer/cache logic for text datasets used by SAE training."""
 
     def __init__(
         self,
@@ -27,12 +28,20 @@ class WindowedTextDataset(Dataset):
         self.max_length = max_length
         self.prepend_bos = prepend_bos
         self.bos_token_id = tokenizer.bos_token_id or tokenizer.eos_token_id
-        self.windows = self._build_windows()
-        if len(self.windows) == 0:
-            raise ValueError("No valid token windows produced from provided texts")
+        self.tokenized_texts = self._tokenize_all_texts()
+        if len(self.tokenized_texts) == 0:
+            raise ValueError("No valid token sequences produced from provided texts")
+
+    def _tokenize_all_texts(self) -> List[torch.Tensor]:
+        tokenized: List[torch.Tensor] = []
+        for text in self.texts:
+            tokens = self._tokenize(text)
+            if tokens.numel() > 0:
+                tokenized.append(tokens)
+        return tokenized
 
     def __len__(self) -> int:
-        return len(self.windows)
+        raise NotImplementedError
 
     def _tokenize(self, text: str) -> torch.Tensor:
         encoded = self.tokenizer(
@@ -47,13 +56,34 @@ class WindowedTextDataset(Dataset):
             encoded = torch.cat([bos, encoded], dim=0)
         return encoded.long()
 
+
+class WindowedTextDataset(_TokenizedTextDataset):
+    """Deterministic non-overlapping windows (used for validation/eval)."""
+
+    def __init__(
+        self,
+        texts: List[str],
+        tokenizer,
+        max_length: int,
+        prepend_bos: bool = False,
+    ):
+        super().__init__(
+            texts=texts,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            prepend_bos=prepend_bos,
+        )
+        self.windows = self._build_windows()
+        if len(self.windows) == 0:
+            raise ValueError("No valid token windows produced from provided texts")
+
+    def __len__(self) -> int:
+        return len(self.windows)
+
     def _build_windows(self) -> List[torch.Tensor]:
-        """Tokenize once and split into fixed windows to avoid repeated work."""
+        """Split cached tokenized texts into deterministic non-overlapping windows."""
         windows: List[torch.Tensor] = []
-        for text in self.texts:
-            tokens = self._tokenize(text)
-            if tokens.numel() == 0:
-                continue
+        for tokens in self.tokenized_texts:
             if tokens.shape[0] <= self.max_length:
                 windows.append(tokens.clone())
                 continue
@@ -66,6 +96,73 @@ class WindowedTextDataset(Dataset):
 
     def __getitem__(self, idx: int) -> torch.Tensor:
         return self.windows[idx]
+
+
+class RandomCropWindowedTextDataset(_TokenizedTextDataset):
+    """
+    Randomly samples a crop from cached tokenized texts on each __getitem__.
+
+    This reduces persistent alignment artifacts (e.g., "position-0" features)
+    caused by deterministic window boundaries while keeping validation deterministic.
+    """
+
+    def __init__(
+        self,
+        texts: List[str],
+        tokenizer,
+        max_length: int,
+        prepend_bos: bool = False,
+        windows_per_epoch: Optional[int] = None,
+    ):
+        super().__init__(
+            texts=texts,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            prepend_bos=prepend_bos,
+        )
+
+        # Approximate old epoch semantics by defaulting to the number of
+        # non-overlapping windows the deterministic dataset would have produced.
+        if windows_per_epoch is None:
+            windows_per_epoch = sum(
+                max(1, (tokens.shape[0] + self.max_length - 1) // self.max_length)
+                for tokens in self.tokenized_texts
+            )
+        if windows_per_epoch <= 0:
+            raise ValueError("windows_per_epoch must be > 0")
+        self.windows_per_epoch = int(windows_per_epoch)
+
+        # Weight text sampling by number of possible crops, which better
+        # approximates uniform sampling over window starts than uniform-text sampling.
+        self._crop_start_counts = [
+            max(1, int(tokens.shape[0]) - self.max_length + 1)
+            for tokens in self.tokenized_texts
+        ]
+        self._cumulative_crop_weights: List[int] = []
+        total = 0
+        for count in self._crop_start_counts:
+            total += count
+            self._cumulative_crop_weights.append(total)
+        self._total_crop_weight = total
+
+    def __len__(self) -> int:
+        return self.windows_per_epoch
+
+    def _sample_text_index(self) -> int:
+        draw = int(torch.randint(self._total_crop_weight, (1,)).item())
+        return bisect.bisect_right(self._cumulative_crop_weights, draw)
+
+    def __getitem__(self, idx: int) -> torch.Tensor:
+        del idx  # sampling is randomized each call
+        text_idx = self._sample_text_index()
+        tokens = self.tokenized_texts[text_idx]
+        if tokens.shape[0] <= self.max_length:
+            return tokens.clone()
+
+        max_start = int(tokens.shape[0]) - self.max_length
+        start = int(torch.randint(max_start + 1, (1,)).item())
+        end = start + self.max_length
+        return tokens[start:end].clone()
 
 
 def pad_collate(batch: List[torch.Tensor], pad_token_id: int) -> torch.Tensor:
@@ -102,6 +199,7 @@ class SAETrainer:
             checkpoint_freq: int = 5,
             save_best: bool = True,
             val_texts: Optional[List[str]] = None,
+            wandb_run: Optional[Any] = None,
         ):
         pad_token_id = self.model.tokenizer.pad_token_id
         if pad_token_id is None:
@@ -109,7 +207,7 @@ class SAETrainer:
         if pad_token_id is None:
             raise ValueError("Tokenizer must supply a pad_token_id or eos_token_id for batching")
 
-        dataset = WindowedTextDataset(
+        dataset = RandomCropWindowedTextDataset(
             texts=texts,
             tokenizer=self.model.tokenizer,
             max_length=self.train_cfg.max_text_length,
@@ -119,6 +217,7 @@ class SAETrainer:
         sample_tokens = dataset[0]
         print(f"Token dtype: {sample_tokens.dtype}")
         print(f"Sample tokens: {sample_tokens[:10]}")
+        print(f"Training dataset mode: random-crop windows ({len(dataset)} samples/epoch)")
 
         persistent_workers = (
             self.train_cfg.persistent_workers and self.train_cfg.num_dataloader_workers > 0
@@ -127,7 +226,8 @@ class SAETrainer:
         loader = DataLoader(
             dataset,
             batch_size=self.train_cfg.batch_size,
-            shuffle=True,
+            # Dataset sampling is already randomized per __getitem__.
+            shuffle=False,
             collate_fn=lambda batch: pad_collate(batch, pad_token_id),
             num_workers=self.train_cfg.num_dataloader_workers,
             pin_memory=self.train_cfg.pin_memory,
@@ -151,6 +251,7 @@ class SAETrainer:
                 pin_memory=self.train_cfg.pin_memory,
                 persistent_workers=False,
             )
+            print(f"Validation dataset mode: deterministic windows ({len(val_dataset)} total)")
 
         checkpoint_path = Path(checkpoint_dir) if checkpoint_dir is not None else None
 
@@ -163,6 +264,7 @@ class SAETrainer:
             checkpoint_freq=checkpoint_freq,
             save_best=save_best,
             val_loader=val_loader,
+            wandb_run=wandb_run,
         )
     
 print("all the way through")
