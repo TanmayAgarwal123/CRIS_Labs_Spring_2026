@@ -7,18 +7,18 @@ Use this file if you already trained an SAE (or downloaded one) and want to:
 - run quick post-training checks
 - run the full corpus activation analysis pipeline
 - inspect feature summaries / matrices
-- use the exploratory notebook `interp_analysis.ipynb`
+- use the exploratory notebook `notebooks/sae_core/interp_analysis.ipynb`
 
 For training, use `sae_core/model_training/README.md`.
 
 ## What this covers
 
-Analysis entrypoints in `sae_core/`:
+Analysis entrypoints:
 
 - `analysis_short_rerun.py`: quick script (sparsity, dead features, ablation)
 - `run_analysis.py`: comprehensive pipeline (activation DB + matrices + metrics + reports)
 - `full_analysis.py`: `SAEAnalyzer` implementation used by both
-- `interp_analysis.ipynb`: exploratory notebook for feature interpretation and matrix diagnostics
+- `notebooks/sae_core/interp_analysis.ipynb`: exploratory notebook for feature interpretation and matrix diagnostics
 
 ## 1) Prerequisites (what you need before analysis)
 
@@ -156,9 +156,9 @@ Typical outputs:
 
 These outputs are what the notebook is intended to inspect.
 
-## 5) Notebook workflow (`interp_analysis.ipynb`)
+## 5) Notebook workflow (`notebooks/sae_core/interp_analysis.ipynb`)
 
-`interp_analysis.ipynb` is an exploratory interpretation notebook for:
+`notebooks/sae_core/interp_analysis.ipynb` is an exploratory interpretation notebook for:
 
 - loading `feature_summaries_*.jsonl`
 - plotting feature statistics
@@ -182,7 +182,7 @@ In particular, update path cells that reference:
 
 1. Run `run_analysis.py` (or `run_comprehensive_analysis(...)`) first.
 2. Confirm your `analysis_dir` contains `results/`, `matrices/`, and `activation_database/`.
-3. Open `interp_analysis.ipynb`.
+3. Open `notebooks/sae_core/interp_analysis.ipynb`.
 4. Update the notebook path variables to point at your analysis outputs.
 5. Run cells top-to-bottom (it is stateful and exploratory; later cells depend on earlier variables).
 
@@ -191,13 +191,13 @@ In particular, update path cells that reference:
 From `SAELens/`:
 
 ```bash
-jupyter lab sae_core/interp_analysis.ipynb
+jupyter lab notebooks/sae_core/interp_analysis.ipynb
 ```
 
 or
 
 ```bash
-jupyter notebook sae_core/interp_analysis.ipynb
+jupyter notebook notebooks/sae_core/interp_analysis.ipynb
 ```
 
 If Jupyter is not installed in your environment:
@@ -232,7 +232,7 @@ run_comprehensive_analysis(
 PY
 
 # 3) Open notebook for interpretation (edit path cells to your outputs)
-jupyter lab sae_core/interp_analysis.ipynb
+jupyter lab notebooks/sae_core/interp_analysis.ipynb
 ```
 
 ## 7) Resource notes (important)

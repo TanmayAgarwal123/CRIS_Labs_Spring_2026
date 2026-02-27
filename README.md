@@ -19,17 +19,19 @@ This repository contains tools for training and analyzing Sparse Autoencoders on
 ## Project Structure
 
 ```
-sae_core/
-├── sae_base.py              # Core SAE implementation
-├── sae_config.py            # SAE configuration classes
-├── training.py              # Training utilities
-├── analysis.py              # SAE analysis tools
-├── model_training/          # Model-specific training scripts
-│   ├── gpt2_sae_training.py
-│   └── Qwen_sae_training.py
-├── data_processing/         # Text data processing utilities
-├── pretrained_models/       # Pre-trained SAE models
-└── utils/                   # Utility functions
+sae_core/                    # Main Python package (training + analysis code)
+notebooks/                   # All notebooks (grouped by origin/workflow)
+├── root/
+├── dataset_preparation/
+├── token_stats/
+└── sae_core/
+data/metadata/               # Chapter range metadata + tags
+├── chapter_ranges_*.csv
+└── duplicates/
+outputs/                     # Generated reports/artifacts
+├── topic_reports/
+├── sae_analysis/
+└── token_stats/
 ```
 
 ## Quick Start
@@ -91,4 +93,3 @@ The repository includes several pre-trained SAEs:
 - TransformerLens
 - NumPy
 - tqdm
-
