@@ -1,0 +1,12 @@
+pretrained_models/
+__pycache__/
+.git/
+*.log
+deprecated_analysis/
+cris_py312_env/
+checkpoints/
+sae_env/
+smoke_test_checkpoints/
+smoke_test_false/
+smoke_test_true/
+qwen3_06B_l12_analysis/

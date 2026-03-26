@@ -1,0 +1,90 @@
+{
+  "os":  "Linux-6.8.0-90-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.11.14",
+  "startedAt":  "2026-03-02T19:46:36.126346Z",
+  "args":  [
+    "--model-name",
+    "Qwen/Qwen3-1.7B",
+    "--sae-type",
+    "batch_topk",
+    "--topk",
+    "128",
+    "--sae-expansion",
+    "4",
+    "--run-name",
+    "qwen3_1p7b_middle_btop128_exp4",
+    "--data-path",
+    "/scratch/hewittlab/dc3349/SAELens/sae_core/data/processed_data/processed_textbooks_all.json",
+    "--wandb",
+    "--wandb-project",
+    "sae-training"
+  ],
+  "program":  "-m sae_core.model_training.single_sae_training",
+  "git":  {
+    "remote":  "git@github.com:VenkatSBitra/cris-llm-fall-2025.git",
+    "commit":  "a543a0f0223118a8e52e52483e9e0d5f18e1885c"
+  },
+  "email":  "dscasey02@gmail.com",
+  "root":  "/scratch/hewittlab/dc3349/SAELens",
+  "host":  "csrtx6000-2",
+  "executable":  "/home/dc3349/miniconda3/envs/research/bin/python",
+  "cpu_count":  64,
+  "cpu_count_logical":  128,
+  "gpu":  "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "67049664512",
+      "used":  "18304274432"
+    }
+  },
+  "memory":  {
+    "total":  "1623107772416"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "memoryTotal":  "102641958912",
+      "cudaCores":  24064,
+      "architecture":  "Blackwell",
+      "uuid":  "GPU-7a381571-b469-0f30-e8c1-020bf157120e"
+    }
+  ],
+  "cudaVersion":  "13.1",
+  "slurm":  {
+    "cluster_name":  "deepops",
+    "conf":  "/etc/slurm/slurm.conf",
+    "cpus_on_node":  "16",
+    "gpus":  "1",
+    "gpus_on_node":  "1",
+    "gtids":  "0",
+    "job_account":  "hewittlab",
+    "job_cpus_per_node":  "16",
+    "job_end_time":  "1772563525",
+    "job_gid":  "98",
+    "job_gpus":  "4",
+    "job_id":  "12946",
+    "job_name":  "sae_qwen3_1p7b",
+    "job_nodelist":  "csrtx6000-2",
+    "job_num_nodes":  "1",
+    "job_partition":  "hewittlab",
+    "job_qos":  "normal",
+    "job_start_time":  "1772480725",
+    "job_uid":  "19658",
+    "job_user":  "dc3349",
+    "jobid":  "12946",
+    "localid":  "0",
+    "nnodes":  "1",
+    "nodeid":  "0",
+    "nodelist":  "csrtx6000-2",
+    "prio_process":  "0",
+    "procid":  "0",
+    "submit_dir":  "/scratch/hewittlab/dc3349/SAELens",
+    "submit_host":  "aics",
+    "task_pid":  "3382912",
+    "tasks_per_node":  "16",
+    "topology_addr":  "csrtx6000-2",
+    "topology_addr_pattern":  "node"
+  },
+  "writerId":  "duaucf7fpu3b0djgp2fo3ayns5xdz16h"
+}
