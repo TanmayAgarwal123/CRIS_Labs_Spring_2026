@@ -1,0 +1,31 @@
+{
+  "sparsity": {
+    "l0_mean": 128.0,
+    "l0_std": 52.76892927802658,
+    "l1_mean": 461.7240772189969,
+    "l1_std": 2004.9226534486386,
+    "n_features": 4096,
+    "n_tokens": 2226141
+  },
+  "dead_features": {
+    "n_dead": 0,
+    "pct_dead": 0.0,
+    "threshold": 0.0,
+    "use_training_metric": true
+  },
+  "reconstruction": {
+    "mse": 0.11240112630370788,
+    "explained_variance": 0.9998319655218821,
+    "cosine_similarity": 0.9443754862878919,
+    "original_std": 25.86310472826921,
+    "residual_std": 0.33525854753997836,
+    "n_tokens": 2226141
+  },
+  "ablation": {
+    "baseline_loss": 3.016087009777673,
+    "zero_ablation_loss": 11.9296875,
+    "sae_reconstruction_loss": 3.0584402208543953,
+    "loss_recovered": 0.995248473260252,
+    "n_batches": 8754
+  }
+}

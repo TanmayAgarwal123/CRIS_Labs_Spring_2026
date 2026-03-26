@@ -168,7 +168,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--use-block-mse", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--block-mse-weight", type=float, default=1e-3)
     parser.add_argument("--use-logit-kl", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--logit-kl-weight", type=float, default=1e-1)
+    parser.add_argument("--logit-kl-weight", type=float, default=1e-2)
     parser.add_argument("--log-freq", type=int, default=100)
     parser.add_argument("--checkpoint-freq", type=int, default=2)
     parser.add_argument("--early-stopping-patience", type=int, default=2)

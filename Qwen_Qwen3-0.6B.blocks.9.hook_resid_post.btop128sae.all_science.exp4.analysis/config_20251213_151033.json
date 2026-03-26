@@ -1,0 +1,9 @@
+{
+  "timestamp": "20251213_151033",
+  "model_name": "qwen3-0.6b",
+  "sae_path": "Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4",
+  "layer": 9,
+  "hook_name": "hook_resid_post",
+  "data_path": "sae_core/data/processed_data/processed_textbooks_all.json",
+  "batch_size": 16
+}

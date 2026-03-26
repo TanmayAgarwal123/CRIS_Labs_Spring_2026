@@ -1,0 +1,50 @@
+{
+  "timestamp": "20251213_151033",
+  "model": "qwen3-0.6b",
+  "sae_path": "Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4",
+  "layer": 9,
+  "hook_name": "hook_resid_post",
+  "dataset_size": 35014,
+  "n_tokens_processed": 2226141,
+  "n_features": 4096,
+  "sparsity": {
+    "l0_mean": 128.0,
+    "l0_std": 52.76892927802658,
+    "l1_mean": 461.7240772189969,
+    "l1_std": 2004.9226534486386
+  },
+  "dead_features": {
+    "n_dead": 0,
+    "pct_dead": 0.0
+  },
+  "reconstruction": {
+    "mse": 0.11240112630370788,
+    "explained_variance": 0.9998319655218821,
+    "cosine_similarity": 0.9443754862878919
+  },
+  "ablation": {
+    "baseline_loss": 3.016087009777673,
+    "zero_ablation_loss": 11.9296875,
+    "sae_reconstruction_loss": 3.0584402208543953,
+    "loss_recovered": 0.995248473260252
+  },
+  "top_features": [
+    2842,
+    3593,
+    1726,
+    1201,
+    1833,
+    2605,
+    2435,
+    3949,
+    407,
+    1597
+  ],
+  "files": {
+    "activation_db": "activation_database/activation_db_20251213_151033.pkl",
+    "similarity_matrix": "matrices/feature_similarity_20251213_151033.npy",
+    "cooccurrence_matrix": "matrices/feature_cooccurrence_20251213_151033.npy",
+    "results": "results/analysis_results_20251213_151033.json",
+    "feature_summaries": "results/feature_summaries_20251213_151033.jsonl"
+  }
+}
