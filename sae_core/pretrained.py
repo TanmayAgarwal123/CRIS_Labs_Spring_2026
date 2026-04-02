@@ -33,7 +33,8 @@ PRETRAINED_SAES = {
     'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4': 'qwen3_06B.blocks.12.hook_resid_post.sae.sparsity100.mse0.001.kl0.01.physics.exp4',
     #BatchTopK SAEs:
     'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop256sae.all_science.exp4' : 'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop256sae.all_science.exp4',
-    'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4' : 'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4'
+    'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4' : 'Qwen_Qwen3-0.6B.blocks.9.hook_resid_post.btop128sae.all_science.exp4',
+    'qwen3_1p7b_middle_btop128_exp4': 'qwen3_1p7b_middle_btop128_exp4',
 }
 
 

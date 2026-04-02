@@ -1,0 +1,99 @@
+{
+  "os":  "Linux-6.8.0-106-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.11.14",
+  "startedAt":  "2026-03-26T23:31:17.482645Z",
+  "args":  [
+    "--model-name",
+    "Qwen/Qwen3-4B",
+    "--sae-type",
+    "batch_topk",
+    "--topk",
+    "128",
+    "--sae-expansion",
+    "4",
+    "--run-name",
+    "qwen3_4b_middle_btop128_exp4",
+    "--data-path",
+    "/scratch/hewittlab/dc3349/SAELens/sae_core/data/processed_data/processed_textbooks_all.json",
+    "--batch-size",
+    "2",
+    "--activation-batch-size",
+    "8",
+    "--max-text-length",
+    "256",
+    "--wandb",
+    "--wandb-project",
+    "sae-training",
+    "--upload-to-hf",
+    "--hf-repo-id",
+    "Sardean/Qwen3_SAEs"
+  ],
+  "program":  "-m sae_core.model_training.single_sae_training",
+  "git":  {
+    "remote":  "git@github.com:TanmayAgarwal123/CRIS_Labs_Spring_2026.git",
+    "commit":  "35fb79bbc1bd6b3609f085827c80f64b5c155be4"
+  },
+  "email":  "dscasey02@gmail.com",
+  "root":  "/scratch/hewittlab/dc3349/SAELens",
+  "host":  "csrtx6000-2",
+  "executable":  "/home/dc3349/miniconda3/envs/research/bin/python",
+  "cpu_count":  64,
+  "cpu_count_logical":  128,
+  "gpu":  "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "67049664512",
+      "used":  "18320236544"
+    }
+  },
+  "memory":  {
+    "total":  "1623108263936"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "memoryTotal":  "102641958912",
+      "cudaCores":  24064,
+      "architecture":  "Blackwell",
+      "uuid":  "GPU-3d83ca4b-0f56-3ce0-6647-d8aa83d7b9f3"
+    }
+  ],
+  "cudaVersion":  "13.1",
+  "slurm":  {
+    "cluster_name":  "deepops",
+    "conf":  "/etc/slurm/slurm.conf",
+    "cpus_on_node":  "16",
+    "gpus":  "1",
+    "gpus_on_node":  "1",
+    "gtids":  "0",
+    "job_account":  "hewittlab",
+    "job_cpus_per_node":  "16",
+    "job_end_time":  "1774654134",
+    "job_gid":  "98",
+    "job_gpus":  "2",
+    "job_id":  "27515",
+    "job_name":  "sae_qwen3_4b",
+    "job_nodelist":  "csrtx6000-2",
+    "job_num_nodes":  "1",
+    "job_partition":  "hewittlab",
+    "job_qos":  "normal",
+    "job_start_time":  "1774567734",
+    "job_uid":  "19658",
+    "job_user":  "dc3349",
+    "jobid":  "27515",
+    "localid":  "0",
+    "nnodes":  "1",
+    "nodeid":  "0",
+    "nodelist":  "csrtx6000-2",
+    "prio_process":  "0",
+    "procid":  "0",
+    "submit_dir":  "/scratch/hewittlab/dc3349",
+    "submit_host":  "aics",
+    "task_pid":  "143543",
+    "tasks_per_node":  "16",
+    "topology_addr":  "csrtx6000-2",
+    "topology_addr_pattern":  "node"
+  },
+  "writerId":  "mn50xr2sucgm4qivi6ox1vi0l0z6r51j"
+}

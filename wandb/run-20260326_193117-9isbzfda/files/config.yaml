@@ -1,0 +1,226 @@
+_wandb:
+    value:
+        cli_version: 0.25.0
+        e:
+            mn50xr2sucgm4qivi6ox1vi0l0z6r51j:
+                args:
+                    - --model-name
+                    - Qwen/Qwen3-4B
+                    - --sae-type
+                    - batch_topk
+                    - --topk
+                    - "128"
+                    - --sae-expansion
+                    - "4"
+                    - --run-name
+                    - qwen3_4b_middle_btop128_exp4
+                    - --data-path
+                    - /scratch/hewittlab/dc3349/SAELens/sae_core/data/processed_data/processed_textbooks_all.json
+                    - --batch-size
+                    - "2"
+                    - --activation-batch-size
+                    - "8"
+                    - --max-text-length
+                    - "256"
+                    - --wandb
+                    - --wandb-project
+                    - sae-training
+                    - --upload-to-hf
+                    - --hf-repo-id
+                    - Sardean/Qwen3_SAEs
+                cpu_count: 64
+                cpu_count_logical: 128
+                cudaVersion: "13.1"
+                disk:
+                    /:
+                        total: "67049664512"
+                        used: "18320236544"
+                email: dscasey02@gmail.com
+                executable: /home/dc3349/miniconda3/envs/research/bin/python
+                git:
+                    commit: 35fb79bbc1bd6b3609f085827c80f64b5c155be4
+                    remote: git@github.com:TanmayAgarwal123/CRIS_Labs_Spring_2026.git
+                gpu: NVIDIA RTX PRO 6000 Blackwell Server Edition
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Blackwell
+                      cudaCores: 24064
+                      memoryTotal: "102641958912"
+                      name: NVIDIA RTX PRO 6000 Blackwell Server Edition
+                      uuid: GPU-3d83ca4b-0f56-3ce0-6647-d8aa83d7b9f3
+                host: csrtx6000-2
+                memory:
+                    total: "1623108263936"
+                os: Linux-6.8.0-106-generic-x86_64-with-glibc2.39
+                program: -m sae_core.model_training.single_sae_training
+                python: CPython 3.11.14
+                root: /scratch/hewittlab/dc3349/SAELens
+                slurm:
+                    cluster_name: deepops
+                    conf: /etc/slurm/slurm.conf
+                    cpus_on_node: "16"
+                    gpus: "1"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: hewittlab
+                    job_cpus_per_node: "16"
+                    job_end_time: "1774654134"
+                    job_gid: "98"
+                    job_gpus: "2"
+                    job_id: "27515"
+                    job_name: sae_qwen3_4b
+                    job_nodelist: csrtx6000-2
+                    job_num_nodes: "1"
+                    job_partition: hewittlab
+                    job_qos: normal
+                    job_start_time: "1774567734"
+                    job_uid: "19658"
+                    job_user: dc3349
+                    jobid: "27515"
+                    localid: "0"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: csrtx6000-2
+                    prio_process: "0"
+                    procid: "0"
+                    submit_dir: /scratch/hewittlab/dc3349
+                    submit_host: aics
+                    task_pid: "143543"
+                    tasks_per_node: "16"
+                    topology_addr: csrtx6000-2
+                    topology_addr_pattern: node
+                startedAt: "2026-03-26T23:31:17.482645Z"
+                writerId: mn50xr2sucgm4qivi6ox1vi0l0z6r51j
+        m: []
+        python_version: 3.11.14
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 51
+                - 53
+                - 71
+            "2":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 51
+                - 53
+                - 71
+            "3":
+                - 2
+                - 13
+                - 15
+                - 16
+                - 62
+            "4": 3.11.14
+            "5": 0.25.0
+            "6": 4.57.6
+            "12": 0.25.0
+            "13": linux-x86_64
+cli_args:
+    value:
+        activation_batch_size: 8
+        aux_penalty: 0.03125
+        batch_size: 2
+        block_mse_weight: 0.001
+        checkpoint_freq: 2
+        checkpoint_root: sae_core/checkpoints
+        data_path: /scratch/hewittlab/dc3349/SAELens/sae_core/data/processed_data/processed_textbooks_all.json
+        device: auto
+        early_stopping_min_delta: 0
+        early_stopping_patience: 2
+        hf_private: false
+        hf_repo_id: Sardean/Qwen3_SAEs
+        hook_layer: null
+        hook_name: hook_resid_post
+        load_in_4bit: false
+        log_freq: 100
+        logit_kl_weight: 0.01
+        lr: 0.001
+        max_text_length: 256
+        middle_layer_strategy: lower
+        model_dtype: auto
+        model_name: Qwen/Qwen3-4B
+        n_batches_to_dead: 200
+        num_epochs: 10
+        output_root: sae_core/pretrained_models
+        recon_weight: 1
+        run_name: qwen3_4b_middle_btop128_exp4
+        sae_dtype: float32
+        sae_expansion: 4
+        sae_type: batch_topk
+        seed: 420
+        sparsity_penalty: 0
+        topk: 128
+        topk_aux: null
+        trust_remote_code: true
+        upload_to_hf: true
+        use_block_mse: false
+        use_end_to_end: true
+        use_logit_kl: true
+        val_fraction: 0.1
+        wandb: true
+        wandb_entity: null
+        wandb_group: null
+        wandb_log_final_artifact: false
+        wandb_mode: null
+        wandb_notes: null
+        wandb_project: sae-training
+        wandb_tags: null
+dataset:
+    value:
+        train_texts: 31513
+        val_texts: 3501
+model_cfg:
+    value:
+        d_model: 2560
+        n_layers: 36
+resolved:
+    value:
+        device: cuda
+        hook_layer: 17
+        hook_spec: blocks.17.hook_resid_post
+        model_dtype: float16
+        n_devices: 1
+        run_name: qwen3_4b_middle_btop128_exp4
+sae_config:
+    value:
+        aux_penalty: 0.03125
+        d_in: 2560
+        d_sae: 10240
+        device: cuda
+        dtype: float32
+        hook_layer: "17"
+        hook_name: hook_resid_post
+        hook_spec: blocks.17.hook_resid_post
+        l1_coefficient: 0
+        n_batches_to_dead: 200
+        top_k: 128
+        top_k_aux: 64
+train_config:
+    value:
+        activation_batch_size: 8
+        batch_size: 2
+        block_mse_layers: null
+        block_mse_weight: 0.001
+        early_stopping_min_delta: 0
+        early_stopping_patience: 2
+        l1_coefficient: 0
+        log_freq: 100
+        logit_kl_weight: 0.01
+        lr: 0.001
+        max_text_length: 256
+        num_dataloader_workers: 0
+        num_epochs: 10
+        persistent_workers: false
+        pin_memory: false
+        reconstruction_loss_weight: 1
+        use_block_mse: false
+        use_end_to_end: true
+        use_logit_kl: true

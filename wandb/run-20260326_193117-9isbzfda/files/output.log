@@ -1,0 +1,134 @@
+Starting SAE training
+Token dtype: torch.int64
+Sample tokens: tensor([  279, 35672,   417,  5127,    88,  2565,    11,   323,  8450,   525])
+Training dataset mode: random-crop windows (32691 samples/epoch)
+Validation dataset mode: deterministic windows (3637 total)
+Checkpointing enabled: saving to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4
+Epoch 1/10: 100%|██████████| 16346/16346 [1:32:02<00:00,  2.96it/s, loss=0.2404, recon=0.2300, l1=0.0000, kl=0.0032]  
+
+Epoch 1 Summary:
+    loss: 0.6850
+      └─ recon_contribution: 0.6630
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0043
+    sparsity: 127.7351
+    aux_loss: 0.0177
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.3991
+          └─ recon_contribution: 0.3799
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0073
+        sparsity: 126.5197
+        aux_loss: 0.0119
+    New best model (val_loss: 0.3991) Saved to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/best_model.pt
+Epoch 2/10: 100%|██████████| 16346/16346 [1:32:11<00:00,  2.96it/s, loss=0.3199, recon=0.3049, l1=0.0000, kl=0.0054]
+
+Epoch 2 Summary:
+    loss: 0.3052
+      └─ recon_contribution: 0.2928
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0031
+    sparsity: 127.6378
+    aux_loss: 0.0093
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.4447
+          └─ recon_contribution: 0.4249
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0063
+        sparsity: 127.3334
+        aux_loss: 0.0135
+    Saved checkpoint to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/checkpoint_epoch2.pt
+Epoch 3/10: 100%|██████████| 16346/16346 [1:31:39<00:00,  2.97it/s, loss=0.3148, recon=0.3019, l1=0.0000, kl=0.0032]
+
+Epoch 3 Summary:
+    loss: 0.2843
+      └─ recon_contribution: 0.2725
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0030
+    sparsity: 127.7711
+    aux_loss: 0.0088
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.3574
+          └─ recon_contribution: 0.3410
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0055
+        sparsity: 127.1171
+        aux_loss: 0.0109
+    New best model (val_loss: 0.3574) Saved to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/best_model.pt
+Epoch 4/10: 100%|██████████| 16346/16346 [1:32:15<00:00,  2.95it/s, loss=0.2287, recon=0.2202, l1=0.0000, kl=0.0013]
+
+Epoch 4 Summary:
+    loss: 0.2917
+      └─ recon_contribution: 0.2796
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0031
+    sparsity: 127.4407
+    aux_loss: 0.0090
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.5015
+          └─ recon_contribution: 0.4798
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0063
+        sparsity: 125.9085
+        aux_loss: 0.0153
+    Saved checkpoint to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/checkpoint_epoch4.pt
+Epoch 5/10: 100%|██████████| 16346/16346 [1:32:12<00:00,  2.95it/s, loss=0.2177, recon=0.2076, l1=0.0000, kl=0.0033]
+
+Epoch 5 Summary:
+    loss: 0.2824
+      └─ recon_contribution: 0.2707
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0030
+    sparsity: 127.7387
+    aux_loss: 0.0088
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.3556
+          └─ recon_contribution: 0.3391
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0056
+        sparsity: 126.6573
+        aux_loss: 0.0109
+    New best model (val_loss: 0.3556) Saved to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/best_model.pt
+Epoch 6/10: 100%|██████████| 16346/16346 [1:32:04<00:00,  2.96it/s, loss=0.3138, recon=0.3002, l1=0.0000, kl=0.0036]
+
+Epoch 6 Summary:
+    loss: 0.3035
+      └─ recon_contribution: 0.2909
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0032
+    sparsity: 127.0225
+    aux_loss: 0.0094
+    dead features: 0/10240 (0.00%)
+    Validation:
+        loss: 0.8197
+          └─ recon_contribution: 0.7841
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0076
+        sparsity: 122.1985
+        aux_loss: 0.0280
+    Saved checkpoint to sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/checkpoint_epoch6.pt
+Epoch 7/10: 100%|██████████| 16346/16346 [1:30:10<00:00,  3.02it/s, loss=0.1214, recon=0.1169, l1=0.0000, kl=0.0005]
+
+Epoch 7 Summary:
+    loss: 0.2844
+      └─ recon_contribution: 0.2725
+      └─ l1_contribution: 0.0000
+      └─ kl_contribution: 0.0030
+    sparsity: 127.8388
+    aux_loss: 0.0089
+    dead features: 0/10240 (0.00%)
+    Early stopping triggered at epoch 7 (best val_loss: 0.3556)
+    Validation:
+        loss: 0.4135
+          └─ recon_contribution: 0.3937
+          └─ l1_contribution: 0.0000
+          └─ kl_contribution: 0.0071
+        sparsity: 125.4727
+        aux_loss: 0.0127
+Loading best checkpoint from sae_core/checkpoints/qwen3_4b_middle_btop128_exp4/best_model.pt
+Uploading qwen3_4b_middle_btop128_exp4 to Hugging Face repo Sardean/Qwen3_SAEs
