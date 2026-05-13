@@ -1,0 +1,31 @@
+# Listed in run order; agent must complete each tier before the next.
+# bf16 throughout for clean residual-stream analysis.
+
+models:
+  # Tier 1 — required
+  - name: Qwen/Qwen3-0.6B-Base
+    short_name: qwen3_0.6b
+    dtype: bfloat16
+    tier: 1
+
+  - name: Qwen/Qwen3-1.7B-Base
+    short_name: qwen3_1.7b
+    dtype: bfloat16
+    tier: 1
+
+  - name: Qwen/Qwen3-4B-Base
+    short_name: qwen3_4b
+    dtype: bfloat16
+    tier: 1
+
+  # Tier 2 — if GPU memory permits
+  - name: Qwen/Qwen3-8B-Base
+    short_name: qwen3_8b
+    dtype: bfloat16
+    tier: 2
+
+  # Tier 3 — only on 40GB+ GPU
+  - name: Qwen/Qwen3-14B-Base
+    short_name: qwen3_14b
+    dtype: bfloat16
+    tier: 3

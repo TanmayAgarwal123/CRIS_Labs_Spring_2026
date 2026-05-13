@@ -1,0 +1,24 @@
+source_a:
+  suffix_bank: data/repe_suffixes/science_suffix_bank.jsonl
+  prompt_mode: science_persona
+  truncation_levels: 10
+  min_truncation_pct: 0.20
+  max_truncation_pct: 0.95
+  drop_last_n_tokens: 5
+
+source_b:
+  fallback_prompt_mode: neutral_text
+
+batch_size: 1
+final_token_only: true
+save_raw_activations: false
+pca_components: 1
+normalize_vectors: true
+flip_by_validation_accuracy: true
+
+control:
+  default_coefficients: [-2.0, -1.0, 0.0, 1.0, 2.0]
+  layer_strategy: middle_late
+  max_new_tokens: 160
+  do_sample: false
+  repetition_penalty: 1.1

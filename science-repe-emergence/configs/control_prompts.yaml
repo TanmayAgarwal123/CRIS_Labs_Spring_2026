@@ -1,0 +1,53 @@
+# Math prompts are kept per user instruction (overrides the AGENTS.md
+# "phys/chem/bio only" line); Source B math contrast datasets are also
+# in scope even without a math textbook input.
+prompts:
+  - id: physics_momentum_001
+    domain: physics
+    concept: conservation_of_momentum
+    prompt: "Explain why total momentum is conserved in an isolated collision."
+
+  - id: physics_forces_001
+    domain: physics
+    concept: newtons_third_law
+    prompt: "Two skaters push off from each other. Explain why they exert equal forces on each other even if one skater is heavier."
+
+  - id: physics_energy_001
+    domain: physics
+    concept: conservation_of_energy
+    prompt: "A ball is dropped from a height. Explain how its kinetic and potential energies change as it falls."
+
+  - id: chemistry_equilibrium_001
+    domain: chemistry
+    concept: le_chatelier_principle
+    prompt: "Explain what happens when more reactant is added to a chemical system at equilibrium."
+
+  - id: chemistry_thermal_001
+    domain: chemistry
+    concept: endothermic_equilibrium
+    prompt: "Explain how increasing temperature affects an endothermic equilibrium reaction."
+
+  - id: chemistry_catalyst_001
+    domain: chemistry
+    concept: catalysts
+    prompt: "Explain how a catalyst speeds up a chemical reaction without being consumed."
+
+  - id: biology_selection_001
+    domain: biology
+    concept: natural_selection
+    prompt: "Explain why natural selection does not give organisms traits simply because they need them."
+
+  - id: biology_diffusion_001
+    domain: biology
+    concept: diffusion
+    prompt: "Explain why molecules move across a membrane from high concentration to low concentration."
+
+  - id: math_division_001
+    domain: mathematics
+    concept: division_by_zero
+    prompt: "Explain why division by zero is undefined."
+
+  - id: math_proof_001
+    domain: mathematics
+    concept: proof_validity
+    prompt: "Explain why proving several examples is not enough to prove a statement for all integers."

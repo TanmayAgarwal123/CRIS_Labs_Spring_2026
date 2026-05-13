@@ -1,0 +1,32 @@
+total_target_pairs: 165   # MVP scope; expand later
+
+datasets:
+  concept_correct_vs_misconception:
+    target_pairs: 55
+
+  mechanistic_explanation_vs_surface:
+    target_pairs: 55
+
+  counterfactual_reasoning:
+    target_pairs: 55
+
+  # math_formal_reasoning: SKIPPED in MVP — no math textbook available.
+  # transfer_application: SKIPPED in MVP — lowest signal per generation budget.
+
+splits:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+
+paraphrase_test:
+  source_split: test          # paraphrase HELD-OUT test pairs only
+  n_per_dataset: 10
+  paraphrase_model: gpt-4.1-mini
+
+generation:
+  model: gpt-4.1-mini
+  temperature: 0.7
+  max_retries: 3
+  batch_size: 5               # pairs per API call
+  length_ratio_tolerance: 0.20
+  min_shared_anchors: 2

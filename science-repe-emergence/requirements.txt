@@ -1,0 +1,16 @@
+torch
+transformers
+accelerate
+bitsandbytes
+scikit-learn
+numpy
+pandas
+matplotlib
+tqdm
+pydantic
+python-dotenv
+openai
+sentencepiece
+protobuf
+huggingface_hub
+pyyaml
