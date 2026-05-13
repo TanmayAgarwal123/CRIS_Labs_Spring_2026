@@ -1,0 +1,24 @@
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.pyc
+*.pkl
+*.pt
+*.npy
+
+.DS_Store
+.venv/
+.ipynb_checkpoints/
+
+# Outputs (vectors, activations, plots, evaluations) live on Google Drive in
+# Colab and never need to be tracked in the repo.
+outputs/
+
+# Raw / intermediate textbook data is large. Phase 1+2+3 outputs that the
+# Colab pipeline (Phase 7+) actually needs (data/processed/*.jsonl and
+# data/repe_suffixes/*.jsonl + data/generated/*.jsonl) ARE tracked.
+data/preprocessed/
+data/extracted/
+data/raw_textbooks/

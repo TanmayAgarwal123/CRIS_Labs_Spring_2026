@@ -1,1 +1,19 @@
-"""seed_everything(seed: int) for python random, numpy, torch (cpu+cuda)."""
+"""seed_everything for reproducibility across python / numpy / torch."""
+
+import os
+import random
+
+import numpy as np
+
+
+def seed_everything(seed: int = 42) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass
