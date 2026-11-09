@@ -1,4 +1,4 @@
-OUT OF DATE
+Sparse autoencoder (SAE) research codebase for analyzing transformer language models — Columbia CRIS Lab, Spring 2026.
 
 # SAE Core
 
